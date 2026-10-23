@@ -52,6 +52,7 @@ const MENSAJES: Record<number, string> = {
 const ERRORES: Record<string, string> = {
   'sin-conector': 'Falta configurar CRM_API_URL y CRM_API_KEY en Vercel (y redesplegar)',
   vacio: 'El CRM del Club devolvió una lista vacía; no se cambió nada',
+  confirmar: 'Falta confirmar la renovación',
 }
 
 async function pedir<T>(ruta: string, sesion: Sesion, body?: unknown): Promise<T> {
@@ -126,8 +127,11 @@ export const api = {
   sesion: (s: Pick<Sesion, 'codigo' | 'nombre'>) => pedir<{ rol: Rol; nombre: string }>('/api/sesion', { ...s, rol: 'usuario' }),
   contactos: (s: Sesion) => pedir<Carga>('/api/contactos', s),
   cambios: (s: Sesion, desde: number) => pedir<Delta>(`/api/cambios?desde=${desde}`, s),
-  actualizar: (s: Sesion, ids: string[], edicion: Edicion) =>
-    pedir<{ v: number; contactos: Contacto[] }>('/api/actualizar', s, { ids, edicion }),
+  /** `confirmado`: la persona pasó la doble verificación de "Renovado" (el servidor la exige) */
+  actualizar: (s: Sesion, ids: string[], edicion: Edicion, confirmado?: boolean) =>
+    pedir<{ v: number; contactos: Contacto[]; club?: { revertidas: string[] } }>('/api/actualizar', s, { ids, edicion, ...(confirmado ? { confirmado } : {}) }),
+  /** Reenvía el aviso de renovación al Club, o confirma que ya se le avisó a mano que no procede */
+  solicitud: (s: Sesion, id: string, accion: 'reenviar' | 'cerrar') => pedir<{ contactos: Contacto[] }>('/api/solicitudes', s, { id, accion }),
   nuevo: (s: Sesion, datos: NuevoContacto) => pedir<{ v: number; contacto: Contacto }>('/api/nuevo', s, datos),
   config: (s: Sesion, datos: { plantillas?: Plantilla[]; meta?: number | null }) =>
     pedir<{ v: number; plantillas?: Plantilla[]; meta: number | null }>('/api/config', s, datos),

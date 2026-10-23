@@ -124,6 +124,12 @@ create table if not exists solicitudes_renovacion (
   creada       timestamptz not null default now(),
   enviada      timestamptz
 );
+-- nota que viaja al Club junto con el aviso; y los estados 'cancelada' (nunca llegó a enviarse) y 'revertida'
+-- (se envió, pero aquí se quitó "Renovado": hay que avisarle al Club)
+alter table solicitudes_renovacion add column if not exists nota text;
+alter table solicitudes_renovacion drop constraint if exists solicitudes_renovacion_estado_check;
+alter table solicitudes_renovacion add constraint solicitudes_renovacion_estado_check
+  check (estado in ('pendiente', 'enviada', 'aprobada', 'fallida', 'cancelada', 'revertida'));
 -- una sola solicitud abierta por contacto
 create unique index if not exists solicitudes_abierta_idx on solicitudes_renovacion (contacto_id) where estado in ('pendiente', 'enviada');
 alter table solicitudes_renovacion enable row level security;

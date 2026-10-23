@@ -7,6 +7,7 @@ import {
   type Actividad,
   type Contacto,
   type Estado,
+  type EstadoSolicitud,
   type Motivo,
   type Nota,
   type Plantilla,
@@ -115,7 +116,7 @@ export const puedeVer = (q: Quien, c: Contacto) => q.rol === 'admin' || enAlcanc
 
 // ---------- Contactos ----------
 
-const COLUMNAS = '*, notas(id, texto, fecha, hoja, por, estado)'
+const COLUMNAS = '*, notas(id, texto, fecha, hoja, por, estado), solicitudes_renovacion(id, estado, ultimo_error, creada)'
 // La API de Supabase entrega como máximo 1000 filas por consulta
 const PAGINA = 1000
 
@@ -126,6 +127,13 @@ interface FilaNota {
   hoja: string | null
   por: string | null
   estado: string | null
+}
+
+interface FilaSolicitud {
+  id: string
+  estado: string
+  ultimo_error: string | null
+  creada: string
 }
 
 // Fila de la base → Contacto (valores del Excel + lo que cambió el equipo)
@@ -162,6 +170,14 @@ function aContacto(f: Record<string, any>): Contacto {
   if (estado === 'no_interesado' && f.motivo) c.motivo = f.motivo as Motivo
   if (f.no_contactar !== null) c.noContactar = f.no_contactar
   if (f.seguimiento) c.seguimiento = f.seguimiento
+  // El aviso más reciente (los cancelados nunca llegaron al Club: no se muestran)
+  const aviso = ([...(f.solicitudes_renovacion ?? [])] as FilaSolicitud[])
+    .filter((s) => s.estado !== 'cancelada')
+    .sort((a, b) => b.creada.localeCompare(a.creada))[0]
+  if (aviso) {
+    c.solicitud = { id: aviso.id, estado: aviso.estado as EstadoSolicitud, creada: new Date(aviso.creada).toISOString() }
+    if (aviso.estado === 'fallida' && aviso.ultimo_error) c.solicitud.error = aviso.ultimo_error
+  }
   if (f.v > 0) {
     c.v = Number(f.v)
     c.at = new Date(f.at).toISOString()

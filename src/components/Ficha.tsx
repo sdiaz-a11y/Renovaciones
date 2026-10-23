@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { CalendarClock, Copy, FileSpreadsheet, Mail, MapPin, ShieldAlert, StickyNote, UserRound, X } from 'lucide-react'
+import { CalendarClock, CircleCheckBig, Clock, Copy, FileSpreadsheet, Mail, MapPin, Send, ShieldAlert, StickyNote, TriangleAlert, UserRound, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useCRM } from '../lib/crm'
 import { copiar, cuandoSeguimiento, fechaCorta, haceCuanto, hoy } from '../lib/util'
@@ -105,6 +105,8 @@ function Contenido({ c, cerrar }: { c: Contacto; cerrar: () => void }) {
             </button>
           </div>
         )}
+
+        <AvisoClub c={c} />
 
         {/* Contacto */}
         <section className="tarjeta p-4">
@@ -294,5 +296,74 @@ function Contenido({ c, cerrar }: { c: Contacto; cerrar: () => void }) {
         </section>
       </div>
     </>
+  )
+}
+
+/** Estado del aviso de renovación que se envió al CRM del Club */
+function AvisoClub({ c }: { c: Contacto }) {
+  const { avisoClub } = useCRM()
+  const [ocupado, setOcupado] = useState(false)
+  const s = c.solicitud
+  if (!s) return null
+  const accion = async (a: 'reenviar' | 'cerrar') => {
+    setOcupado(true)
+    await avisoClub(s.id, a)
+    setOcupado(false)
+  }
+  const boton = (texto: string, a: 'reenviar' | 'cerrar') => (
+    <button className="btn-suave shrink-0" disabled={ocupado} onClick={() => void accion(a)}>
+      {ocupado ? '…' : texto}
+    </button>
+  )
+  const cuando = haceCuanto(s.creada)
+
+  const [tono, icono, titulo, detalle, acciones] = {
+    pendiente: [
+      'border-linea-2 bg-white',
+      <Clock key="i" className="text-tenue" size={18} />,
+      'Aviso al Club pendiente de envío',
+      'Todavía no llega al CRM del Club; se reintenta solo cada pocos minutos.',
+      boton('Enviar ahora', 'reenviar'),
+    ],
+    enviada: [
+      'border-linea-2 bg-white',
+      <Send key="i" className="text-[#2a78d6]" size={18} />,
+      'Aviso enviado al Club',
+      'Esperando que un administrador del Club apruebe la renovación.',
+      null,
+    ],
+    aprobada: [
+      'border-[#1baf7a]/40 bg-[#1baf7a]/8',
+      <CircleCheckBig key="i" className="text-[#1baf7a]" size={18} />,
+      'Renovación aprobada por el Club',
+      'Ya quedó renovada en el CRM del Club.',
+      null,
+    ],
+    fallida: [
+      'border-[#e34948]/40 bg-[#e34948]/8',
+      <TriangleAlert key="i" className="text-[#c0302f]" size={18} />,
+      'No se pudo avisar al Club',
+      s.error ?? 'El CRM del Club no recibió el aviso.',
+      boton('Reintentar', 'reenviar'),
+    ],
+    revertida: [
+      'border-[#e34948]/40 bg-[#e34948]/8',
+      <TriangleAlert key="i" className="text-[#c0302f]" size={18} />,
+      'El Club todavía tiene esta renovación',
+      'Se le avisó que renovó, pero aquí se quitó “Renovado”. Avísales que no procede y pulsa el botón.',
+      boton('Ya les avisé', 'cerrar'),
+    ],
+  }[s.estado]
+
+  return (
+    <section className={`flex items-start gap-3 rounded-2xl border p-3.5 text-sm ${tono}`}>
+      <span className="mt-0.5 shrink-0">{icono}</span>
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold">{titulo}</p>
+        <p className="text-tinta-2">{detalle}</p>
+        <p className="mt-0.5 text-xs text-tenue">Aviso creado {cuando}</p>
+      </div>
+      {acciones}
+    </section>
   )
 }

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { acumular, aplicar, type Actividad, type Contacto, type Edicion, type Plantilla } from '../shared/modelo'
+import { ConfirmarRenovacion } from '../components/ConfirmarRenovacion'
 import { api, type Carga, type Delta, type NuevoContacto, type Sesion } from './api'
 
 interface CRM {
@@ -19,6 +20,8 @@ interface CRM {
   actualizar: (ids: string[], edicion: Edicion) => Promise<boolean>
   nuevo: (datos: NuevoContacto) => Promise<Contacto | null>
   guardarConfig: (datos: { plantillas?: Plantilla[]; meta?: number | null }) => Promise<boolean>
+  /** Reenvía el aviso de renovación al Club, o confirma que ya se le avisó a mano que no procede */
+  avisoClub: (solicitudId: string, accion: 'reenviar' | 'cerrar') => Promise<boolean>
   /** Vuelve a bajar todos los contactos (la sincronización con el Club no sube la versión, así que el sondeo no los ve) */
   recargar: () => Promise<void>
   avisar: (texto: string, tipo?: 'ok' | 'error') => void
@@ -65,6 +68,8 @@ export function ProveedorCRM({
   const [actividad, setActividad] = useState(inicial.actividad)
   const [plantillas, setPlantillas] = useState(inicial.plantillas)
   const [meta, setMeta] = useState(inicial.meta)
+  // Doble verificación de "Renovado": mientras haya una pendiente se muestra la ventana de confirmación
+  const [confirmando, setConfirmando] = useState<{ contactos: Contacto[]; responder: (ok: boolean) => void } | null>(null)
   const [base, setBase] = useState({ generado: inicial.generado, fuente: inicial.fuente })
   const [sincronizado, setSincronizado] = useState<Date | null>(new Date())
   const [sinConexion, setSinConexion] = useState(false)
@@ -121,6 +126,20 @@ export function ProveedorCRM({
   const actualizar = useCallback<CRM['actualizar']>(
     async (ids, edicion) => {
       const antes = ids.map((id) => porIdRef.current.get(id)).filter((c): c is Contacto => !!c)
+      // Marcar "Renovado" avisa al CRM del Club: antes se pide confirmar (el servidor también lo exige)
+      const porRenovar = edicion.estado === 'renovado' ? antes.filter((c) => c.estado !== 'renovado') : []
+      if (porRenovar.length) {
+        const confirmado = await new Promise<boolean>((resolver) =>
+          setConfirmando({
+            contactos: porRenovar,
+            responder: (ok) => {
+              setConfirmando(null)
+              resolver(ok)
+            },
+          }),
+        )
+        if (!confirmado) return false
+      }
       const ahora = new Date().toISOString()
       // Se ve el cambio al instante; si el servidor falla, se regresa
       setContactos((prev) =>
@@ -130,8 +149,11 @@ export function ProveedorCRM({
         ),
       )
       try {
-        const r = await api.actualizar(sesion, ids, edicion)
+        const r = await api.actualizar(sesion, ids, edicion, porRenovar.length > 0)
         setContactos((prev) => fusionar(prev, r.contactos))
+        if (r.club?.revertidas.length) {
+          avisar(`Ya se había avisado al Club que ${r.club.revertidas.join(', ')} renovó. Avísales que no procede (ficha → Aviso al Club).`, 'error')
+        }
         void consultar()
         return true
       } catch (err) {
@@ -172,6 +194,20 @@ export function ProveedorCRM({
       }
     },
     [avisar, consultar, sesion],
+  )
+
+  const avisoClub = useCallback<CRM['avisoClub']>(
+    async (solicitudId, accion) => {
+      try {
+        const r = await api.solicitud(sesion, solicitudId, accion)
+        setContactos((prev) => fusionar(prev, r.contactos))
+        return true
+      } catch (err) {
+        avisar(`No se pudo: ${(err as Error).message}`, 'error')
+        return false
+      }
+    },
+    [avisar, sesion],
   )
 
   const recargar = useCallback(async () => {
@@ -218,8 +254,14 @@ export function ProveedorCRM({
     actualizar,
     nuevo,
     guardarConfig,
+    avisoClub,
     recargar,
     avisar,
   }
-  return <Ctx.Provider value={valor}>{children}</Ctx.Provider>
+  return (
+    <Ctx.Provider value={valor}>
+      {children}
+      {confirmando && <ConfirmarRenovacion contactos={confirmando.contactos} responder={confirmando.responder} />}
+    </Ctx.Provider>
+  )
 }

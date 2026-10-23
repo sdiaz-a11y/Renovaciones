@@ -70,6 +70,22 @@ export interface Nota {
   e?: Estado
 }
 
+/**
+ * Estado del aviso de renovación al CRM del Club:
+ * pendiente = aún no llega · enviada = el Club la tiene y falta que la apruebe · aprobada = ya renovó allá ·
+ * fallida = no se pudo enviar · revertida = se envió, pero aquí se quitó "Renovado": hay que avisarle al Club
+ */
+export type EstadoSolicitud = 'pendiente' | 'enviada' | 'aprobada' | 'fallida' | 'revertida'
+
+export interface SolicitudClub {
+  id: string
+  estado: EstadoSolicitud
+  /** por qué falló (solo fallida) */
+  error?: string
+  /** fecha ISO en que se creó */
+  creada: string
+}
+
 export interface Contacto {
   id: string
   nombre: string
@@ -97,6 +113,8 @@ export interface Contacto {
   /** Fecha y autor del último cambio en el CRM */
   at?: string
   por?: string
+  /** Último aviso de renovación enviado al CRM del Club */
+  solicitud?: SolicitudClub
 }
 
 export interface Base {

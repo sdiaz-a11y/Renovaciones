@@ -136,9 +136,11 @@ async function sincronizar(req: Request) {
         ok(
           await db().rpc('crm_editar', {
             p_ids: [s.contacto_id],
-            p_ed: { nota: 'El CRM del Club aprobó la renovación.' },
+            p_ed: {
+              nota: s.estado === 'revertida' ? 'El CRM del Club aprobó la renovación, aunque aquí se había quitado "Renovado". Revisar.' : 'El CRM del Club aprobó la renovación.',
+            },
             p_por: 'Sistema',
-            p_texto: 'renovación aprobada por el CRM del Club',
+            p_texto: s.estado === 'revertida' ? 'renovación aprobada por el CRM del Club (estaba revertida aquí)' : 'renovación aprobada por el CRM del Club',
             p_nombre: c.nombre,
             p_estado: null,
           }),
