@@ -19,7 +19,10 @@ import { autenticar, db, error, ok, okNull, registrar, sinCache } from './_lib.j
  *
  * También reenvía los avisos de renovación que no llegaron.
  */
-const PRESUPUESTO_MS = 240_000 // maxDuration es 300 s: no se empieza otra página después de esto
+// maxDuration es 300 s y una página puede tardar hasta 100 s: no se empieza otra después de este tiempo
+const PRESUPUESTO_MS = 160_000
+// Una sola sincronización a la vez (cada Run o cron extra le suma carga al Club); el candado caduca por si una se cae
+const CANDADO_MS = 6 * 60_000
 const DESCANSO_MS = 60 * 60_000
 
 async function permitido(req: Request): Promise<'cron' | 'admin' | Response> {
@@ -40,6 +43,14 @@ async function sincronizar(req: Request) {
   const quien = await permitido(req)
   if (quien instanceof Response) return quien
   const inicio = Date.now()
+  const candado = await db()
+    .from('config')
+    .update({ sync_bloqueo: new Date(inicio).toISOString() })
+    .eq('id', true)
+    .or(`sync_bloqueo.is.null,sync_bloqueo.lt.${new Date(inicio - CANDADO_MS).toISOString()}`)
+    .select('id')
+  if (candado.error) return error(new Error(candado.error.message))
+  if (!candado.data.length) return Response.json({ ok: true, ocupado: true }, { headers: sinCache })
   try {
     const reenviadas = await reenviarPendientes()
 
@@ -137,6 +148,8 @@ async function sincronizar(req: Request) {
   } catch (err) {
     if ((err as Error).message === 'sin-conector') return Response.json({ error: 'sin-conector' }, { status: 503 })
     return error(err)
+  } finally {
+    await db().from('config').update({ sync_bloqueo: null }).eq('id', true)
   }
 }
 

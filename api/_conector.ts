@@ -82,7 +82,8 @@ export async function traerPagina(pagina: number): Promise<{ clientes: Inactivo[
   if (!configurado()) throw new Error('sin-conector')
   const res = await fetch(urlClub(`/api/externo/renovaciones/inactivos?pagina=${pagina}`), {
     headers: cabecerasClub(),
-    signal: AbortSignal.timeout(45_000),
+    // Cada página tarda 15-60 s según la carga del Club
+    signal: AbortSignal.timeout(100_000),
   })
   if (!res.ok) throw new Error(`El CRM del Club respondió ${res.status} (página ${pagina})`)
   const cuerpo = (await res.json()) as { clientes?: unknown; siguiente?: unknown } | null

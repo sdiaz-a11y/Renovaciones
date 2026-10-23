@@ -109,6 +109,7 @@ alter table contactos add column if not exists sync_ciclo text;
 alter table config add column if not exists sync_pagina integer not null default 1;
 alter table config add column if not exists sync_ciclo text;
 alter table config add column if not exists sync_fin timestamptz;
+alter table config add column if not exists sync_bloqueo timestamptz;  -- candado: una sola sincronización a la vez
 
 -- Avisos "este cliente renovó" que se envían al CRM del Club (api/_acceso.ts). El Club los aprueba a mano.
 -- (La tabla anterior, solicitudes_acceso, ya no se usa: se puede borrar con "drop table solicitudes_acceso".)
