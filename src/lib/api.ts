@@ -48,6 +48,12 @@ const MENSAJES: Record<number, string> = {
   503: 'El CRM todavía no tiene código de acceso configurado',
 }
 
+/** Errores que la API nombra en el cuerpo de la respuesta (pesan más que el mensaje del estado HTTP) */
+const ERRORES: Record<string, string> = {
+  'sin-conector': 'Falta configurar CRM_API_URL y CRM_API_KEY en Vercel (y redesplegar)',
+  vacio: 'El CRM del Club devolvió una lista vacía; no se cambió nada',
+}
+
 async function pedir<T>(ruta: string, sesion: Sesion, body?: unknown): Promise<T> {
   const res = await fetch(ruta, {
     method: body === undefined ? 'GET' : 'POST',
@@ -61,7 +67,7 @@ async function pedir<T>(ruta: string, sesion: Sesion, body?: unknown): Promise<T
   })
   if (!res.ok) {
     const data = (await res.json().catch(() => ({}))) as { error?: string }
-    throw new ErrorApi(res.status, MENSAJES[res.status] ?? data.error ?? `Error ${res.status}`)
+    throw new ErrorApi(res.status, (data.error && ERRORES[data.error]) ?? MENSAJES[res.status] ?? data.error ?? `Error ${res.status}`)
   }
   return (await res.json()) as T
 }
@@ -102,7 +108,21 @@ export interface RespUsuario {
   codigo: string | null
 }
 
+/** Una tanda de la sincronización con el CRM del Club (ver api/sincronizar.ts) */
+export interface RespSincronizar {
+  ok: true
+  /** true cuando ya se recorrieron todas las páginas */
+  completo?: boolean
+  siguientePagina?: number | null
+  contactos?: number
+  nuevos?: number
+  aprobadas?: number
+  /** otra sincronización está corriendo */
+  ocupado?: boolean
+}
+
 export const api = {
+  sincronizar: (s: Sesion) => pedir<RespSincronizar>('/api/sincronizar', s),
   sesion: (s: Pick<Sesion, 'codigo' | 'nombre'>) => pedir<{ rol: Rol; nombre: string }>('/api/sesion', { ...s, rol: 'usuario' }),
   contactos: (s: Sesion) => pedir<Carga>('/api/contactos', s),
   cambios: (s: Sesion, desde: number) => pedir<Delta>(`/api/cambios?desde=${desde}`, s),

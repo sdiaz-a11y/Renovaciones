@@ -1,5 +1,5 @@
 import { PLANTILLAS_INICIALES } from '../src/shared/modelo.js'
-import { autenticar, error, leerActividad, leerConfig, leerContactos, puedeVer, sinCache, versionActual } from './_lib.js'
+import { autenticar, error, jsonEnPartes, leerActividad, leerConfig, leerContactos, puedeVer, sinCache, versionActual } from './_lib.js'
 
 /** Contactos combinados con los cambios del equipo: admin recibe todos, usuario solo los suyos */
 export async function GET(req: Request) {
@@ -13,7 +13,7 @@ export async function GET(req: Request) {
       leerActividad(q, { ultimas: q.rol === 'admin' ? 120 : 60 }),
       leerConfig(),
     ])
-    return Response.json(
+    return jsonEnPartes(
       {
         yo: { rol: q.rol, nombre: q.nombre },
         v,
@@ -24,7 +24,7 @@ export async function GET(req: Request) {
         plantillas: config.plantillas ?? PLANTILLAS_INICIALES,
         meta: config.meta,
       },
-      { headers: sinCache },
+      sinCache,
     )
   } catch (err) {
     return error(err)

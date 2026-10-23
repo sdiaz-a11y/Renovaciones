@@ -19,6 +19,8 @@ interface CRM {
   actualizar: (ids: string[], edicion: Edicion) => Promise<boolean>
   nuevo: (datos: NuevoContacto) => Promise<Contacto | null>
   guardarConfig: (datos: { plantillas?: Plantilla[]; meta?: number | null }) => Promise<boolean>
+  /** Vuelve a bajar todos los contactos (la sincronización con el Club no sube la versión, así que el sondeo no los ve) */
+  recargar: () => Promise<void>
   avisar: (texto: string, tipo?: 'ok' | 'error') => void
 }
 
@@ -63,6 +65,7 @@ export function ProveedorCRM({
   const [actividad, setActividad] = useState(inicial.actividad)
   const [plantillas, setPlantillas] = useState(inicial.plantillas)
   const [meta, setMeta] = useState(inicial.meta)
+  const [base, setBase] = useState({ generado: inicial.generado, fuente: inicial.fuente })
   const [sincronizado, setSincronizado] = useState<Date | null>(new Date())
   const [sinConexion, setSinConexion] = useState(false)
   // La versión solo avanza con la consulta de cambios, para no saltarse cambios de otras personas
@@ -171,6 +174,18 @@ export function ProveedorCRM({
     [avisar, consultar, sesion],
   )
 
+  const recargar = useCallback(async () => {
+    const r = await api.contactos(sesion)
+    version.current = r.v
+    setContactos(r.contactos)
+    setActividad(r.actividad)
+    setPlantillas(r.plantillas)
+    setMeta(r.meta)
+    setBase({ generado: r.generado, fuente: r.fuente })
+    setSincronizado(new Date())
+    setSinConexion(false)
+  }, [sesion])
+
   const equipo = useMemo(() => {
     const n = new Map<string, number>()
     const sumar = (x?: string) => {
@@ -195,14 +210,15 @@ export function ProveedorCRM({
     actividad,
     plantillas,
     meta,
-    generado: inicial.generado,
-    fuente: inicial.fuente,
+    generado: base.generado,
+    fuente: base.fuente,
     equipo,
     sincronizado,
     sinConexion,
     actualizar,
     nuevo,
     guardarConfig,
+    recargar,
     avisar,
   }
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>

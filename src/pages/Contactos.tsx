@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { CalendarClock, Check, Download, Search, ShieldAlert, SlidersHorizontal, UserPlus, X } from 'lucide-react'
 import { useDeferredValue, useMemo, useState } from 'react'
+import { BotonClub } from '../components/BotonClub'
 import { MiniEstados } from '../components/graficas'
 import { NuevoContactoModal } from '../components/NuevoContacto'
 import { Avatar, BotonWhatsapp, EstadoChip, Vacio } from '../components/ui'
@@ -117,6 +118,7 @@ export function Contactos() {
           <button className="btn-suave" onClick={() => setNuevo(true)}>
             <UserPlus size={16} /> Agregar
           </button>
+          {esAdmin && <BotonClub />}
           {esAdmin && (
             <button className="btn-suave" onClick={() => descargarCSV(filtrados, `renovaciones-${hoy()}.csv`)} disabled={!filtrados.length}>
               <Download size={16} /> Exportar {num(filtrados.length)}

@@ -257,6 +257,24 @@ export async function registrar(por: string, texto: string) {
 
 export const sinCache = { 'Cache-Control': 'no-store' }
 
+/**
+ * Respuesta JSON enviada por partes. Vercel limita a 4,5 MB las respuestas completas de una función
+ * (con miles de contactos se pasa), pero no las que se transmiten.
+ */
+export function jsonEnPartes(datos: unknown, headers: Record<string, string> = {}) {
+  const bytes = new TextEncoder().encode(JSON.stringify(datos))
+  const PARTE = 256 * 1024
+  let i = 0
+  const cuerpo = new ReadableStream<Uint8Array>({
+    pull(c) {
+      if (i >= bytes.length) return c.close()
+      c.enqueue(bytes.subarray(i, i + PARTE))
+      i += PARTE
+    },
+  })
+  return new Response(cuerpo, { headers: { 'content-type': 'application/json', ...headers } })
+}
+
 export function error(err: unknown) {
   console.error(err)
   return Response.json({ error: (err as Error)?.message ?? 'error' }, { status: 500 })
