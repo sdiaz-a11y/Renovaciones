@@ -20,7 +20,12 @@ export const cabecerasClub = () => ({ accept: 'application/json', authorization:
 
 type Fila = Record<string, unknown>
 
-const texto = (v: unknown) => (typeof v === 'string' ? v.trim() : typeof v === 'number' ? String(v) : '')
+// El Club guarda errores de su hoja de cálculo ("#REF!", "#N/A"...) como si fueran datos: se tratan como vacío
+const ERROR_DE_HOJA = /^#(REF!|N\/A|VALUE!|NAME\?|DIV\/0!|NULL!|ERROR!)$/i
+const texto = (v: unknown) => {
+  const s = typeof v === 'string' ? v.trim() : typeof v === 'number' ? String(v) : ''
+  return ERROR_DE_HOJA.test(s) ? '' : s
+}
 const dia = (v: unknown) => {
   const d = texto(v).slice(0, 10)
   return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null
