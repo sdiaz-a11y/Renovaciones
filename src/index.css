@@ -1,0 +1,130 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Barlow Condensed', 'Inter', system-ui, sans-serif;
+
+  /* Vino del logo del Club Sinergético */
+  --color-vino-950: #170808;
+  --color-vino-900: #2b1010;
+  --color-vino-800: #431619;
+  --color-vino-700: #631c16;
+  --color-vino-600: #7d2219;
+  --color-vino-500: #9b2c22;
+  --color-vino-100: #f6e4e1;
+  --color-vino-50: #fbf3f1;
+
+  /* Miel (abeja) */
+  --color-miel: #e0a43a;
+  --color-miel-oscuro: #9a6a12;
+  --color-miel-claro: #f8ebcd;
+
+  /* Superficies y tinta */
+  --color-papel: #f6f1ee;
+  --color-superficie: #ffffff;
+  --color-tinta: #1f1414;
+  --color-tinta-2: #5c4f4d;
+  --color-tenue: #8f8380;
+  --color-linea: #ebe1dd;
+  --color-linea-2: #ddd0cb;
+
+  /* Serie única de gráficas (validada) */
+  --color-serie: #b23a5a;
+
+  --color-wa: #1fa855;
+  --color-wa-oscuro: #128c4a;
+
+  --shadow-tarjeta: 0 1px 2px rgb(43 16 16 / 0.05), 0 4px 16px -6px rgb(43 16 16 / 0.08);
+  --shadow-flotante: 0 12px 40px -12px rgb(43 16 16 / 0.35);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-papel font-sans text-tinta antialiased;
+  }
+  button,
+  [role='button'] {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-miel);
+    outline-offset: 2px;
+  }
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
+
+/* En Tailwind v4 solo se puede hacer @apply de utilidades: btn se define como utilidad */
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-semibold transition select-none disabled:opacity-50;
+}
+
+@layer components {
+  .tarjeta {
+    @apply rounded-2xl border border-linea bg-superficie shadow-tarjeta;
+  }
+  .kicker {
+    @apply text-[11px] font-semibold tracking-[0.14em] text-tenue uppercase;
+  }
+  .titulo-seccion {
+    @apply font-display text-2xl leading-none font-bold tracking-tight text-tinta;
+  }
+  .campo {
+    @apply w-full rounded-xl border border-linea-2 bg-white px-3 py-2 text-sm text-tinta placeholder:text-tenue focus:border-vino-500 focus:ring-2 focus:ring-vino-500/15 focus:outline-none;
+  }
+  .btn-primario {
+    @apply btn bg-vino-700 text-white hover:bg-vino-600 active:bg-vino-800;
+  }
+  .btn-suave {
+    @apply btn border border-linea-2 bg-white text-tinta hover:border-vino-500/40 hover:bg-vino-50;
+  }
+  .btn-wa {
+    @apply btn bg-wa text-white hover:bg-wa-oscuro;
+  }
+  .pildora {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium whitespace-nowrap transition;
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Panal sobre el degradado: va en una capa propia para no tapar el background-image del degradado.
+   En @layer components para que utilidades como fixed/sticky/absolute ganen sobre position: relative */
+@layer components {
+  .panal {
+    position: relative;
+    isolation: isolate;
+  }
+  .panal::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='98' viewBox='0 0 56 98'%3E%3Cpath d='M28 66L0 50V18L28 2l28 16v32L28 66zm0 32L0 82V66l28 16 28-16v16L28 98z' fill='none' stroke='%23ffffff' stroke-opacity='0.06' stroke-width='1.2'/%3E%3C/svg%3E");
+  }
+}
+
+.scroll-fino {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-linea-2) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,209 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { acumular, aplicar, type Actividad, type Contacto, type Edicion, type Plantilla } from '../shared/modelo'
+import { api, type Carga, type Delta, type NuevoContacto, type Sesion } from './api'
+
+interface CRM {
+  sesion: Sesion
+  esAdmin: boolean
+  contactos: Contacto[]
+  porId: Map<string, Contacto>
+  actividad: Actividad[]
+  plantillas: Plantilla[]
+  meta: number | null
+  generado: string
+  fuente: string
+  /** Nombres del equipo (de quienes aparecen en el Excel y en el CRM), los más activos primero */
+  equipo: string[]
+  sincronizado: Date | null
+  sinConexion: boolean
+  actualizar: (ids: string[], edicion: Edicion) => Promise<boolean>
+  nuevo: (datos: NuevoContacto) => Promise<Contacto | null>
+  guardarConfig: (datos: { plantillas?: Plantilla[]; meta?: number | null }) => Promise<boolean>
+  avisar: (texto: string, tipo?: 'ok' | 'error') => void
+}
+
+const Ctx = createContext<CRM | null>(null)
+
+export function useCRM() {
+  const c = useContext(Ctx)
+  if (!c) throw new Error('useCRM fuera del proveedor')
+  return c
+}
+
+const CADA = 30_000
+
+function fusionar(lista: Contacto[], nuevos: Contacto[]) {
+  if (!nuevos.length) return lista
+  const m = new Map(nuevos.map((c) => [c.id, c]))
+  const out = lista.map((c) => m.get(c.id) ?? c)
+  const ya = new Set(lista.map((c) => c.id))
+  for (const c of nuevos) if (!ya.has(c.id)) out.push(c)
+  return out
+}
+
+function unirActividad(prev: Actividad[], extra: Actividad[]) {
+  if (!extra.length) return prev
+  const clave = (a: Actividad) => `${a.v}:${a.id}:${a.at}`
+  const vistos = new Set(prev.map(clave))
+  return [...prev, ...extra.filter((a) => !vistos.has(clave(a)))].sort((a, b) => a.v - b.v).slice(-300)
+}
+
+export function ProveedorCRM({
+  sesion,
+  inicial,
+  avisar,
+  children,
+}: {
+  sesion: Sesion
+  inicial: Carga
+  avisar: CRM['avisar']
+  children: ReactNode
+}) {
+  const [contactos, setContactos] = useState(inicial.contactos)
+  const [actividad, setActividad] = useState(inicial.actividad)
+  const [plantillas, setPlantillas] = useState(inicial.plantillas)
+  const [meta, setMeta] = useState(inicial.meta)
+  const [sincronizado, setSincronizado] = useState<Date | null>(new Date())
+  const [sinConexion, setSinConexion] = useState(false)
+  // La versión solo avanza con la consulta de cambios, para no saltarse cambios de otras personas
+  const version = useRef(inicial.v)
+  const consultando = useRef(false)
+
+  const aplicarDelta = useCallback((d: Delta) => {
+    version.current = Math.max(version.current, d.v)
+    if (d.contactos.length) setContactos((prev) => fusionar(prev, d.contactos))
+    if (d.quitar?.length) {
+      const fuera = new Set(d.quitar)
+      setContactos((prev) => prev.filter((c) => !fuera.has(c.id)))
+    }
+    if (d.actividad.length) setActividad((prev) => unirActividad(prev, d.actividad))
+    if (d.plantillas) setPlantillas(d.plantillas)
+    if (d.meta !== undefined) setMeta(d.meta)
+  }, [])
+
+  const consultar = useCallback(async () => {
+    if (consultando.current) return
+    consultando.current = true
+    try {
+      aplicarDelta(await api.cambios(sesion, version.current))
+      setSincronizado(new Date())
+      setSinConexion(false)
+    } catch {
+      setSinConexion(true)
+    } finally {
+      consultando.current = false
+    }
+  }, [aplicarDelta, sesion])
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible') void consultar()
+    }, CADA)
+    const alVolver = () => {
+      if (document.visibilityState === 'visible') void consultar()
+    }
+    document.addEventListener('visibilitychange', alVolver)
+    window.addEventListener('online', alVolver)
+    return () => {
+      clearInterval(t)
+      document.removeEventListener('visibilitychange', alVolver)
+      window.removeEventListener('online', alVolver)
+    }
+  }, [consultar])
+
+  const porId = useMemo(() => new Map(contactos.map((c) => [c.id, c])), [contactos])
+  const porIdRef = useRef(porId)
+  porIdRef.current = porId
+
+  const actualizar = useCallback<CRM['actualizar']>(
+    async (ids, edicion) => {
+      const antes = ids.map((id) => porIdRef.current.get(id)).filter((c): c is Contacto => !!c)
+      const ahora = new Date().toISOString()
+      // Se ve el cambio al instante; si el servidor falla, se regresa
+      setContactos((prev) =>
+        fusionar(
+          prev,
+          antes.map((c) => aplicar(c, { ...acumular(undefined, edicion, c.v ?? 0, ahora, sesion.nombre) })),
+        ),
+      )
+      try {
+        const r = await api.actualizar(sesion, ids, edicion)
+        setContactos((prev) => fusionar(prev, r.contactos))
+        void consultar()
+        return true
+      } catch (err) {
+        setContactos((prev) => fusionar(prev, antes))
+        avisar(`No se guardó: ${(err as Error).message}`, 'error')
+        return false
+      }
+    },
+    [avisar, consultar, sesion],
+  )
+
+  const nuevo = useCallback<CRM['nuevo']>(
+    async (datos) => {
+      try {
+        const r = await api.nuevo(sesion, datos)
+        setContactos((prev) => fusionar(prev, [r.contacto]))
+        void consultar()
+        return r.contacto
+      } catch (err) {
+        avisar(`No se agregó: ${(err as Error).message}`, 'error')
+        return null
+      }
+    },
+    [avisar, consultar, sesion],
+  )
+
+  const guardarConfig = useCallback<CRM['guardarConfig']>(
+    async (datos) => {
+      try {
+        const r = await api.config(sesion, datos)
+        if (r.plantillas) setPlantillas(r.plantillas)
+        setMeta(r.meta)
+        void consultar()
+        return true
+      } catch (err) {
+        avisar(`No se guardó: ${(err as Error).message}`, 'error')
+        return false
+      }
+    },
+    [avisar, consultar, sesion],
+  )
+
+  const equipo = useMemo(() => {
+    const n = new Map<string, number>()
+    const sumar = (x?: string) => {
+      const k = x?.trim()
+      if (k && k.length > 1) n.set(k, (n.get(k) ?? 0) + 1)
+    }
+    for (const c of contactos) {
+      sumar(c.asignado)
+      sumar(c.contacto)
+      sumar(c.por)
+    }
+    for (const a of actividad) sumar(a.por)
+    sumar(sesion.nombre)
+    return [...n.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k)
+  }, [actividad, contactos, sesion.nombre])
+
+  const valor: CRM = {
+    sesion,
+    esAdmin: sesion.rol === 'admin',
+    contactos,
+    porId,
+    actividad,
+    plantillas,
+    meta,
+    generado: inicial.generado,
+    fuente: inicial.fuente,
+    equipo,
+    sincronizado,
+    sinConexion,
+    actualizar,
+    nuevo,
+    guardarConfig,
+    avisar,
+  }
+  return <Ctx.Provider value={valor}>{children}</Ctx.Provider>
+}

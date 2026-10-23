@@ -1,0 +1,12 @@
+node_modules
+dist
+.vercel
+.env*
+*.local
+.DS_Store
+# Datos personales: nunca al repositorio
+datos/
+*.xlsx
+contactos*.json
+.wrangler
+.dev.vars
