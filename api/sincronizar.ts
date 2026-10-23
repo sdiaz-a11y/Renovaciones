@@ -37,7 +37,14 @@ async function permitido(req: Request): Promise<'cron' | 'admin' | Response> {
   return q instanceof Response ? q : 'admin'
 }
 
-const trozos = <T>(lista: T[], n: number) => Array.from({ length: Math.ceil(lista.length / n) }, (_, i) => lista.slice(i * n, i * n + n))
+/**
+ * Columnas que son trabajo del equipo (o control interno): la sincronización NUNCA las escribe.
+ * El upsert solo actualiza las columnas que trae el objeto; este seguro hace fallar la sincronización
+ * si alguien las añade por error, antes de que se pise algo.
+ */
+const PROTEGIDAS = ['estado', 'contacto', 'estado_crm', 'asignado_crm', 'contacto_crm', 'motivo', 'no_contactar', 'seguimiento', 'nuevo', 'v', 'at', 'por']
+
+const trozos =<T>(lista: T[], n: number) => Array.from({ length: Math.ceil(lista.length / n) }, (_, i) => lista.slice(i * n, i * n + n))
 
 async function sincronizar(req: Request) {
   const quien = await permitido(req)
@@ -94,6 +101,8 @@ async function sincronizar(req: Request) {
         asignado: c.asignado,
         sync_ciclo: ciclo,
       }))
+      const pisadas = PROTEGIDAS.filter((k) => filas.some((f) => k in f))
+      if (pisadas.length) throw new Error(`La sincronización intentó escribir columnas del equipo: ${pisadas.join(', ')}`)
       for (const lote of trozos(filas, 500)) ok(await db().from('contactos').upsert(lote, { onConflict: 'id' }))
       const notas = clientes
         .filter((i) => !conocidos.has(i.contacto.id))
