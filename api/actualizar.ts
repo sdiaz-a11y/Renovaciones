@@ -1,4 +1,5 @@
 import { describir, LIMITES, limpiarEdicion } from '../src/shared/modelo.js'
+import { crearSolicitudes, enviar } from './_acceso.js'
 import { autenticar, contactosPorId, db, error, ok, puedeVer, sinCache } from './_lib.js'
 
 /** Cambia estado, responsable, seguimiento o agrega una nota a uno o varios contactos */
@@ -29,6 +30,15 @@ export async function POST(req: Request) {
         p_estado: edicion.estado ?? null,
       }),
     )
+    // Al marcar ¡Renovó! se avisa al CRM del Club (si falla, queda pendiente y la sincronización lo reintenta)
+    if (edicion.estado === 'renovado') {
+      try {
+        const nuevas = await crearSolicitudes(validos.filter((c) => c.estado !== 'renovado').map((c) => c.id), q.nombre)
+        for (const s of nuevas) await enviar(s)
+      } catch (err) {
+        console.error(err)
+      }
+    }
     const contactos = await contactosPorId(validos.map((c) => c.id))
     return Response.json({ v: Number(v), contactos }, { headers: sinCache })
   } catch (err) {

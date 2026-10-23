@@ -101,6 +101,26 @@ language sql security definer set search_path = public as $$
   returning n
 $$;
 
+-- Id del cliente en el CRM del Club (su correo normalizado); lo llena la sincronización
+alter table contactos add column if not exists ext_id text;
+
+-- Avisos "este cliente renovó" que se envían al CRM del Club (api/_acceso.ts). El Club los aprueba a mano.
+-- (La tabla anterior, solicitudes_acceso, ya no se usa: se puede borrar con "drop table solicitudes_acceso".)
+create table if not exists solicitudes_renovacion (
+  id           text primary key,  -- solicitud_id: se reenvía igual en cada reintento, así el Club no duplica
+  contacto_id  text not null references contactos (id) on delete cascade,
+  ext_id       text not null default '',
+  renovado_por text not null default '',
+  estado       text not null default 'pendiente' check (estado in ('pendiente', 'enviada', 'aprobada', 'fallida')),
+  intentos     integer not null default 0,
+  ultimo_error text,
+  creada       timestamptz not null default now(),
+  enviada      timestamptz
+);
+-- una sola solicitud abierta por contacto
+create unique index if not exists solicitudes_abierta_idx on solicitudes_renovacion (contacto_id) where estado in ('pendiente', 'enviada');
+alter table solicitudes_renovacion enable row level security;
+
 -- Los cambios que modifican contactos se guardan con un candado: así la versión (v) sube en el mismo
 -- orden en que se confirman y ningún navegador se salta un cambio al pedir "lo nuevo desde la versión N".
 

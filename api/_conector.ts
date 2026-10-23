@@ -1,88 +1,94 @@
-// Conector con el CRM externo que entrega los contactos reales.
-// Es el único archivo que conoce el formato del otro CRM: si sus campos se llaman distinto, se ajusta aquí.
+// Conector con el CRM del Club (https://soporte.sinergeticos.com): de ahí vienen los clientes sin acceso.
+// Es el único archivo que conoce el formato de sus respuestas.
 //
 // Variables de entorno:
-//   CRM_URL    dirección del endpoint que lista los contactos (GET, JSON)
-//   CRM_TOKEN  clave de acceso (se envía como "Authorization: Bearer <clave>")
+//   CRM_API_URL  dirección base del CRM del Club
+//   CRM_API_KEY  su RENOVACIONES_API_TOKEN (se envía como "Authorization: Bearer <clave>")
+//
+// GET {CRM_API_URL}/api/externo/renovaciones/inactivos?pagina=1
+//   → { clientes: [{ id, nombre, correo, telefono, pais, ciudad, evento, fecha_inscripcion, fin_acceso,
+//                    asignado (siempre null), notas: [{ texto, fecha, autor }] }], siguiente: url | null }
+//   Páginas de 500; sin "siguiente" es la última. Los REVOCADOS nunca vienen. `id` es el correo normalizado.
 import { createHash } from 'node:crypto'
-import { aWhatsapp, esEstado, type Contacto } from '../src/shared/modelo.js'
+import type { Contacto, Nota } from '../src/shared/modelo.js'
+
+export const configurado = () => Boolean(process.env.CRM_API_URL && process.env.CRM_API_KEY)
+
+export const urlClub = (ruta: string) => new URL(ruta, process.env.CRM_API_URL).toString()
+
+export const cabecerasClub = () => ({ accept: 'application/json', authorization: `Bearer ${process.env.CRM_API_KEY}` })
 
 type Fila = Record<string, unknown>
 
-/** Primer campo con valor entre varios nombres posibles (por si el CRM usa inglés o español) */
-function campo(f: Fila, nombres: string[]): string {
-  for (const n of nombres) {
-    const v = f[n]
-    if (typeof v === 'string' && v.trim()) return v.trim()
-    if (typeof v === 'number') return String(v)
-  }
-  return ''
+const texto = (v: unknown) => (typeof v === 'string' ? v.trim() : typeof v === 'number' ? String(v) : '')
+const dia = (v: unknown) => {
+  const d = texto(v).slice(0, 10)
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null
 }
-
-const NOMBRE = ['nombre', 'name', 'full_name', 'fullName']
-const EMAIL = ['email', 'correo', 'mail']
-const TELEFONO = ['telefono', 'teléfono', 'phone', 'celular', 'whatsapp', 'mobile']
-const LADA = ['lada', 'codigo_pais', 'country_code']
-const PAIS = ['pais', 'país', 'country']
-const SEDE = ['sede', 'ciudad', 'city', 'branch']
-const ASIGNADO = ['asignado', 'asignado_a', 'responsable', 'owner', 'assigned_to']
-const ESTADO = ['estado', 'status']
-const FECHA = ['fecha', 'fecha_vencimiento', 'vencimiento', 'expires_at', 'created_at']
 
 const REGION: Record<string, string> = { México: 'México', 'Estados Unidos': 'EUA' }
 
-/** Convierte una fila del CRM externo en un contacto de este CRM (null si no sirve para contactar) */
-export function aContactoBase(f: Fila): Contacto | null {
-  const email = campo(f, EMAIL).toLowerCase()
-  const bruto = campo(f, TELEFONO)
-  // Con "+" el número ya trae su lada; si no, se usa la columna de lada
-  const wa = bruto.startsWith('+') ? bruto.replace(/\D/g, '') || null : aWhatsapp(campo(f, LADA), bruto)
-  const nombre = campo(f, NOMBRE) || email
-  if (!nombre || (!email && !wa)) return null
+export interface Inactivo {
+  contacto: Contacto
+  /** id del cliente en el CRM del Club */
+  extId: string
+  notas: Nota[]
+}
+
+/** Convierte un cliente del CRM del Club en un contacto de este CRM (null si no hay forma de contactarlo) */
+export function aInactivo(f: Fila): Inactivo | null {
+  const email = texto(f.correo).toLowerCase()
+  const bruto = texto(f.telefono)
+  // Con "+" el número ya trae su lada
+  const wa = bruto.startsWith('+') ? bruto.replace(/\D/g, '') || null : null
+  const extId = texto(f.id).toLowerCase() || email
+  const nombre = texto(f.nombre) || email
+  if (!extId || !nombre || (!email && !wa)) return null
   // El id sale del email (o del teléfono), igual que en scripts/importar.py: así no cambia entre sincronizaciones
   const id = createHash('sha1').update(email || `tel:${wa}`).digest('hex').slice(0, 12)
-  const pais = campo(f, PAIS) || (wa?.startsWith('52') ? 'México' : wa?.startsWith('1') ? 'Estados Unidos' : 'Otro')
-  const estado = campo(f, ESTADO).toLowerCase().replace(/\s+/g, '_')
-  const fecha = campo(f, FECHA).slice(0, 10)
+  const pais = texto(f.pais) || (wa?.startsWith('52') ? 'México' : wa?.startsWith('1') ? 'Estados Unidos' : 'Otro')
+  const notas = (Array.isArray(f.notas) ? (f.notas as Fila[]) : [])
+    .map((n): Nota => ({ t: texto(n.texto), f: texto(n.fecha) || undefined, por: texto(n.autor) || undefined, h: 'CRM Club' }))
+    .filter((n) => n.t)
+  const evento = texto(f.evento)
   return {
-    id,
-    nombre,
-    email,
-    wa,
-    tel: wa ? '+' + wa : '',
-    pais,
-    region: REGION[pais] ?? 'LATAM y otros',
-    sede: campo(f, SEDE),
-    hojas: ['CRM externo'],
-    fecha: /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : null,
-    asignado: campo(f, ASIGNADO),
-    contacto: '',
-    estado: esEstado(estado) ? estado : 'pendiente',
-    notas: [],
+    extId,
+    notas,
+    contacto: {
+      id,
+      nombre,
+      email,
+      wa,
+      tel: wa ? '+' + wa : bruto,
+      pais,
+      region: REGION[pais] ?? 'LATAM y otros',
+      sede: texto(f.ciudad),
+      hojas: evento ? [evento] : ['CRM Club'],
+      // la fecha que importa es cuándo se les acabó el acceso
+      fecha: dia(f.fin_acceso) ?? dia(f.fecha_inscripcion),
+      asignado: texto(f.asignado),
+      contacto: '',
+      estado: 'pendiente',
+      notas: [],
+    },
   }
 }
 
-/** Descarga todos los contactos del CRM externo (sigue el enlace "next" si la respuesta viene paginada) */
-export async function traerContactos(): Promise<Contacto[]> {
-  const inicio = process.env.CRM_URL
-  if (!inicio) throw new Error('sin-conector')
-  const headers: Record<string, string> = { accept: 'application/json' }
-  if (process.env.CRM_TOKEN) headers.authorization = `Bearer ${process.env.CRM_TOKEN}`
-
-  const porId = new Map<string, Contacto>()
-  let url: string | null = inicio
+/** Descarga todos los clientes inactivos (sigue "siguiente" mientras haya más páginas) */
+export async function traerInactivos(): Promise<Inactivo[]> {
+  if (!configurado()) throw new Error('sin-conector')
+  const porId = new Map<string, Inactivo>()
+  let url: string | null = urlClub('/api/externo/renovaciones/inactivos?pagina=1')
   for (let pagina = 0; url && pagina < 200; pagina++) {
-    const res: Response = await fetch(url, { headers })
-    if (!res.ok) throw new Error(`El CRM externo respondió ${res.status}`)
-    const cuerpo = (await res.json()) as unknown
-    const o = (cuerpo && typeof cuerpo === 'object' ? cuerpo : {}) as Record<string, unknown>
-    const filas = Array.isArray(cuerpo) ? cuerpo : [o.contactos, o.data, o.results, o.items].find(Array.isArray)
-    if (!Array.isArray(filas)) throw new Error('No encuentro la lista de contactos en la respuesta del CRM externo')
-    for (const f of filas as Fila[]) {
-      const c = aContactoBase(f)
-      if (c) porId.set(c.id, c)
+    const res: Response = await fetch(url, { headers: cabecerasClub(), signal: AbortSignal.timeout(20_000) })
+    if (!res.ok) throw new Error(`El CRM del Club respondió ${res.status}`)
+    const cuerpo = (await res.json()) as { clientes?: unknown; siguiente?: unknown } | null
+    if (!Array.isArray(cuerpo?.clientes)) throw new Error('No encuentro "clientes" en la respuesta del CRM del Club')
+    for (const f of cuerpo.clientes as Fila[]) {
+      const c = aInactivo(f)
+      if (c) porId.set(c.contacto.id, c)
     }
-    url = typeof o.next === 'string' && o.next ? new URL(o.next, url).toString() : null
+    url = typeof cuerpo.siguiente === 'string' && cuerpo.siguiente ? new URL(cuerpo.siguiente, url).toString() : null
   }
   return [...porId.values()]
 }

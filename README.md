@@ -15,16 +15,13 @@ En línea: https://renovaciones-club-sinergetico.vercel.app
 - **Datos del origen vs. trabajo del equipo**: `contactos` guarda lo que viene del CRM externo (`estado`, `asignado`, `contacto`...) y, aparte, lo que cambia el equipo (`estado_crm`, `asignado_crm`, notas, seguimiento). Sincronizar o reimportar nunca pisa lo segundo.
 - Los ids de contacto salen del email (o del teléfono), así que no cambian entre sincronizaciones.
 
-## Contactos reales (cron)
+## Contactos reales (cron) y renovaciones
 
-`api/sincronizar.ts` trae los contactos del CRM externo y hace *upsert* en Supabase. Vercel lo llama cada hora (`vercel.json` → `crons`, requiere plan Pro; en Hobby solo una vez al día). Un administrador también puede lanzarlo a mano: `GET /api/sincronizar` con su código.
+`api/sincronizar.ts` trae de `GET {CRM_API_URL}/api/externo/renovaciones/inactivos` a los clientes sin acceso (los revocados no aparecen) y hace *upsert* en Supabase. Las notas del Club se copian solo cuando el contacto llega por primera vez. Vercel lo llama cada hora (`vercel.json` → `crons`, requiere plan Pro); un administrador también puede lanzarlo a mano con `GET /api/sincronizar`.
 
-`api/_conector.ts` es el único archivo que conoce el formato del otro CRM. Configura:
+Al marcar **¡Renovó!**, `api/actualizar.ts` crea una solicitud (tabla `solicitudes_renovacion`) y la envía a `POST .../solicitud-acceso` (`api/_acceso.ts`). El Club no renueva solo: un administrador suyo la aprueba. Los fallos de red o 5xx se reintentan en cada sincronización (hasta 8); 400/404 son definitivos. Cuando un cliente con solicitud enviada deja de aparecer entre los inactivos, se marca `aprobada` y queda una nota. `GET /api/solicitudes` las lista; `POST {id}` reenvía una.
 
-- `CRM_URL` — endpoint que lista los contactos (GET, JSON; acepta un arreglo o `{contactos|data|results|items: [...]}`, y sigue `next` si viene paginado).
-- `CRM_TOKEN` — clave (se envía como `Authorization: Bearer`).
-
-Si los campos se llaman distinto, se ajustan las listas de nombres al inicio de `_conector.ts`.
+`api/_conector.ts` es el único archivo que conoce el formato del CRM del Club.
 
 ## Acceso
 
@@ -40,7 +37,7 @@ Si los campos se llaman distinto, se ajustan las listas de nombres al inicio de 
 | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | conexión a la base (solo servidor) |
 | `CODIGO_ADMIN` | código del administrador principal |
 | `CRON_SECRET` | autoriza al cron de Vercel |
-| `CRM_URL`, `CRM_TOKEN` | CRM externo de donde vienen los contactos |
+| `CRM_API_URL`, `CRM_API_KEY` | CRM del Club: su URL base y su `RENOVACIONES_API_TOKEN` |
 
 ## Desarrollo
 
