@@ -74,21 +74,23 @@ export function aInactivo(f: Fila): Inactivo | null {
   }
 }
 
-/** Descarga todos los clientes inactivos (sigue "siguiente" mientras haya más páginas) */
-export async function traerInactivos(): Promise<Inactivo[]> {
+/**
+ * Una página de clientes inactivos (500). Cada una tarda ~15 s en el Club y hay decenas, así que
+ * api/sincronizar.ts las pide por tandas. `hayMas` es false en la última.
+ */
+export async function traerPagina(pagina: number): Promise<{ clientes: Inactivo[]; hayMas: boolean }> {
   if (!configurado()) throw new Error('sin-conector')
+  const res = await fetch(urlClub(`/api/externo/renovaciones/inactivos?pagina=${pagina}`), {
+    headers: cabecerasClub(),
+    signal: AbortSignal.timeout(45_000),
+  })
+  if (!res.ok) throw new Error(`El CRM del Club respondió ${res.status} (página ${pagina})`)
+  const cuerpo = (await res.json()) as { clientes?: unknown; siguiente?: unknown } | null
+  if (!Array.isArray(cuerpo?.clientes)) throw new Error('No encuentro "clientes" en la respuesta del CRM del Club')
   const porId = new Map<string, Inactivo>()
-  let url: string | null = urlClub('/api/externo/renovaciones/inactivos?pagina=1')
-  for (let pagina = 0; url && pagina < 200; pagina++) {
-    const res: Response = await fetch(url, { headers: cabecerasClub(), signal: AbortSignal.timeout(20_000) })
-    if (!res.ok) throw new Error(`El CRM del Club respondió ${res.status}`)
-    const cuerpo = (await res.json()) as { clientes?: unknown; siguiente?: unknown } | null
-    if (!Array.isArray(cuerpo?.clientes)) throw new Error('No encuentro "clientes" en la respuesta del CRM del Club')
-    for (const f of cuerpo.clientes as Fila[]) {
-      const c = aInactivo(f)
-      if (c) porId.set(c.contacto.id, c)
-    }
-    url = typeof cuerpo.siguiente === 'string' && cuerpo.siguiente ? new URL(cuerpo.siguiente, url).toString() : null
+  for (const f of cuerpo.clientes as Fila[]) {
+    const c = aInactivo(f)
+    if (c) porId.set(c.contacto.id, c)
   }
-  return [...porId.values()]
+  return { clientes: [...porId.values()], hayMas: typeof cuerpo.siguiente === 'string' && cuerpo.siguiente !== '' }
 }

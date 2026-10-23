@@ -1,8 +1,8 @@
 import { Buffer } from 'node:buffer'
 import { timingSafeEqual } from 'node:crypto'
 import { enviadas, marcarAprobada, reenviarPendientes } from './_acceso.js'
-import { traerInactivos } from './_conector.js'
-import { autenticar, db, error, ok, registrar, sinCache } from './_lib.js'
+import { traerPagina } from './_conector.js'
+import { autenticar, db, error, ok, okNull, registrar, sinCache } from './_lib.js'
 
 /**
  * Trae del CRM del Club a los clientes sin acceso y los guarda en Supabase.
@@ -10,92 +10,130 @@ import { autenticar, db, error, ok, registrar, sinCache } from './_lib.js'
  * (estado, responsable, notas, seguimientos) no se pisa. Las notas del Club se copian una sola vez,
  * cuando el contacto llega por primera vez.
  *
- * También reenvía los avisos de renovación que no llegaron y marca como aprobados los que el Club ya atendió
- * (un cliente con aviso enviado que deja de aparecer entre los inactivos).
+ * El Club tiene decenas de páginas de 500 y cada una tarda ~15 s, así que no cabe en una sola ejecución:
+ * cada llamada avanza por páginas hasta agotar su tiempo y deja anotado en `config` dónde se quedó
+ * (sync_pagina). Una vuelta completa se llama "ciclo": cada contacto visto se marca con el ciclo
+ * (contactos.sync_ciclo) y, al terminar, los avisos de renovación enviados cuyo cliente ya no apareció
+ * se dan por aprobados. El cron llama cada 10 min, pero un ciclo nuevo solo empieza una hora después de
+ * terminar el anterior; un administrador puede empezar uno cuando quiera.
  *
- * Lo llama el cron de Vercel (con CRON_SECRET) o un administrador desde la app.
+ * También reenvía los avisos de renovación que no llegaron.
  */
-async function permitido(req: Request) {
+const PRESUPUESTO_MS = 240_000 // maxDuration es 300 s: no se empieza otra página después de esto
+const DESCANSO_MS = 60 * 60_000
+
+async function permitido(req: Request): Promise<'cron' | 'admin' | Response> {
   const secreto = process.env.CRON_SECRET
   const auth = req.headers.get('authorization') ?? ''
   if (secreto) {
     const esperado = Buffer.from(`Bearer ${secreto}`)
     const recibido = Buffer.from(auth)
-    if (esperado.length === recibido.length && timingSafeEqual(esperado, recibido)) return true
+    if (esperado.length === recibido.length && timingSafeEqual(esperado, recibido)) return 'cron'
   }
   const q = await autenticar(req, 'admin')
-  return q instanceof Response ? q : true
+  return q instanceof Response ? q : 'admin'
 }
 
 const trozos = <T>(lista: T[], n: number) => Array.from({ length: Math.ceil(lista.length / n) }, (_, i) => lista.slice(i * n, i * n + n))
 
 async function sincronizar(req: Request) {
-  const acceso = await permitido(req)
-  if (acceso instanceof Response) return acceso
+  const quien = await permitido(req)
+  if (quien instanceof Response) return quien
+  const inicio = Date.now()
   try {
     const reenviadas = await reenviarPendientes()
 
-    const inactivos = await traerInactivos()
-    // Una lista vacía casi seguro es un fallo del otro lado: no se toca nada
-    if (!inactivos.length) return Response.json({ error: 'vacio' }, { status: 502 })
-
-    const conocidos = new Set<string>()
-    for (const lote of trozos(inactivos, 200)) {
-      const filas = ok(await db().from('contactos').select('id').in('id', lote.map((i) => i.contacto.id)))
-      for (const f of filas) conocidos.add(f.id)
+    const cfg = ok(await db().from('config').select('sync_pagina, sync_ciclo, sync_fin').eq('id', true).single())
+    let ciclo: string | null = cfg.sync_ciclo
+    let pagina: number = cfg.sync_pagina ?? 1
+    if (!ciclo) {
+      // Sin ciclo en curso: el cron espera una hora desde el último; un administrador empieza ya
+      if (quien === 'cron' && cfg.sync_fin && inicio - Date.parse(cfg.sync_fin) < DESCANSO_MS) {
+        return Response.json({ ok: true, descanso: true, reenviadas }, { headers: sinCache })
+      }
+      ciclo = new Date(inicio).toISOString()
+      pagina = 1
+      ok(await db().from('config').update({ sync_ciclo: ciclo, sync_pagina: 1 }).eq('id', true))
     }
 
-    const filas = inactivos.map(({ contacto: c, extId }) => ({
-      id: c.id,
-      ext_id: extId,
-      nombre: c.nombre,
-      email: c.email,
-      wa: c.wa,
-      tel: c.tel,
-      pais: c.pais,
-      region: c.region,
-      sede: c.sede,
-      hojas: c.hojas,
-      fecha: c.fecha,
-      asignado: c.asignado,
-    }))
-    for (const lote of trozos(filas, 500)) ok(await db().from('contactos').upsert(lote, { onConflict: 'id' }))
+    let contactos = 0
+    let nuevos = 0
+    let completo = false
+    while (Date.now() - inicio < PRESUPUESTO_MS) {
+      const { clientes, hayMas } = await traerPagina(pagina)
+      // Una primera página vacía casi seguro es un fallo del otro lado: no se toca nada
+      if (!clientes.length && pagina === 1) return Response.json({ error: 'vacio' }, { status: 502 })
 
-    const notas = inactivos
-      .filter((i) => !conocidos.has(i.contacto.id))
-      .flatMap((i) =>
-        i.notas.map((n) => ({ contacto_id: i.contacto.id, texto: n.t, fecha: n.f ?? null, hoja: n.h ?? null, por: n.por ?? null, origen: 'crm' })),
-      )
-    for (const lote of trozos(notas, 500)) ok(await db().from('notas').insert(lote))
+      const conocidos = new Set<string>()
+      for (const lote of trozos(clientes, 200)) {
+        for (const f of ok(await db().from('contactos').select('id').in('id', lote.map((i) => i.contacto.id)))) conocidos.add(f.id)
+      }
+      const filas = clientes.map(({ contacto: c, extId }) => ({
+        id: c.id,
+        ext_id: extId,
+        nombre: c.nombre,
+        email: c.email,
+        wa: c.wa,
+        tel: c.tel,
+        pais: c.pais,
+        region: c.region,
+        sede: c.sede,
+        hojas: c.hojas,
+        fecha: c.fecha,
+        asignado: c.asignado,
+        sync_ciclo: ciclo,
+      }))
+      for (const lote of trozos(filas, 500)) ok(await db().from('contactos').upsert(lote, { onConflict: 'id' }))
+      const notas = clientes
+        .filter((i) => !conocidos.has(i.contacto.id))
+        .flatMap((i) =>
+          i.notas.map((n) => ({ contacto_id: i.contacto.id, texto: n.t, fecha: n.f ?? null, hoja: n.h ?? null, por: n.por ?? null, origen: 'crm' })),
+        )
+      for (const lote of trozos(notas, 500)) ok(await db().from('notas').insert(lote))
 
-    // Aprobadas: el Club ya les dio acceso, así que dejaron de ser inactivos
-    const siguenInactivos = new Set(inactivos.map((i) => i.extId))
+      contactos += filas.length
+      nuevos += filas.length - conocidos.size
+      pagina++
+      ok(await db().from('config').update({ sync_pagina: pagina }).eq('id', true))
+      if (!hayMas) {
+        completo = true
+        break
+      }
+    }
+
     let aprobadas = 0
-    for (const s of await enviadas()) {
-      if (siguenInactivos.has(s.ext_id.toLowerCase())) continue
-      await marcarAprobada(s.id)
-      ok(
-        await db().rpc('crm_editar', {
-          p_ids: [s.contacto_id],
-          p_ed: { nota: 'El CRM del Club aprobó la renovación.' },
-          p_por: 'Sistema',
-          p_texto: 'renovación aprobada por el CRM del Club',
-          p_nombre: filas.find((f) => f.id === s.contacto_id)?.nombre ?? s.ext_id,
-          p_estado: null,
-        }),
+    if (completo) {
+      // Aprobadas: el Club ya les dio acceso, así que dejaron de aparecer entre los inactivos
+      const abiertas = await enviadas()
+      const vistos = new Map<string, { sync_ciclo: string | null; nombre: string }>()
+      for (const lote of trozos(abiertas, 200)) {
+        for (const f of ok(await db().from('contactos').select('id, nombre, sync_ciclo').in('id', lote.map((s) => s.contacto_id)))) vistos.set(f.id, f)
+      }
+      for (const s of abiertas) {
+        const c = vistos.get(s.contacto_id)
+        if (!c || c.sync_ciclo === ciclo) continue
+        await marcarAprobada(s.id)
+        ok(
+          await db().rpc('crm_editar', {
+            p_ids: [s.contacto_id],
+            p_ed: { nota: 'El CRM del Club aprobó la renovación.' },
+            p_por: 'Sistema',
+            p_texto: 'renovación aprobada por el CRM del Club',
+            p_nombre: c.nombre,
+            p_estado: null,
+          }),
+        )
+        aprobadas++
+      }
+      okNull(
+        await db()
+          .from('config')
+          .update({ sync_ciclo: null, sync_pagina: 1, sync_fin: new Date().toISOString(), base_generado: new Date().toISOString(), base_fuente: 'CRM del Club' })
+          .eq('id', true),
       )
-      aprobadas++
+      await registrar('Sistema', `terminó de sincronizar con el CRM del Club (${aprobadas} renovaciones aprobadas)`)
     }
-
-    ok(
-      await db()
-        .from('config')
-        .update({ base_generado: new Date().toISOString(), base_fuente: 'CRM del Club' })
-        .eq('id', true),
-    )
-    const nuevos = filas.length - conocidos.size
-    await registrar('Sistema', `sincronizó ${filas.length} contactos con el CRM del Club (${nuevos} nuevos, ${aprobadas} renovaciones aprobadas)`)
-    return Response.json({ ok: true, contactos: filas.length, nuevos, aprobadas, reenviadas }, { headers: sinCache })
+    return Response.json({ ok: true, completo, siguientePagina: completo ? null : pagina, contactos, nuevos, aprobadas, reenviadas }, { headers: sinCache })
   } catch (err) {
     if ((err as Error).message === 'sin-conector') return Response.json({ error: 'sin-conector' }, { status: 503 })
     return error(err)

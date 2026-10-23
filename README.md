@@ -17,7 +17,7 @@ En línea: https://renovaciones-club-sinergetico.vercel.app
 
 ## Contactos reales (cron) y renovaciones
 
-`api/sincronizar.ts` trae de `GET {CRM_API_URL}/api/externo/renovaciones/inactivos` a los clientes sin acceso (los revocados no aparecen) y hace *upsert* en Supabase. Las notas del Club se copian solo cuando el contacto llega por primera vez. Vercel lo llama cada hora (`vercel.json` → `crons`, requiere plan Pro); un administrador también puede lanzarlo a mano con `GET /api/sincronizar`.
+`api/sincronizar.ts` trae de `GET {CRM_API_URL}/api/externo/renovaciones/inactivos` a los clientes sin acceso (los revocados no aparecen) y hace *upsert* en Supabase. Las notas del Club se copian solo cuando el contacto llega por primera vez. El Club tiene decenas de páginas de 500 y cada una tarda ~15 s, así que la sincronización avanza por tandas (anota en `config` en qué página va) y Vercel la llama cada 10 minutos (`vercel.json` → `crons`, requiere plan Pro); un ciclo nuevo empieza una hora después de terminar el anterior. Un administrador puede empezar uno a mano con `GET /api/sincronizar`: responde `completo:false` mientras falten páginas, y se repite hasta `completo:true`.
 
 Al marcar **¡Renovó!**, `api/actualizar.ts` crea una solicitud (tabla `solicitudes_renovacion`) y la envía a `POST .../solicitud-acceso` (`api/_acceso.ts`). El Club no renueva solo: un administrador suyo la aprueba. Los fallos de red o 5xx se reintentan en cada sincronización (hasta 8); 400/404 son definitivos. Cuando un cliente con solicitud enviada deja de aparecer entre los inactivos, se marca `aprobada` y queda una nota. `GET /api/solicitudes` las lista; `POST {id}` reenvía una.
 

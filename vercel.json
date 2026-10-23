@@ -1,7 +1,7 @@
 {
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
-  "functions": { "api/sincronizar.ts": { "maxDuration": 60 } },
-  "crons": [{ "path": "/api/sincronizar", "schedule": "0 * * * *" }],
+  "functions": { "api/sincronizar.ts": { "maxDuration": 300 } },
+  "crons": [{ "path": "/api/sincronizar", "schedule": "*/10 * * * *" }],
   "headers": [
     {
       "source": "/(.*)",

@@ -104,6 +104,12 @@ $$;
 -- Id del cliente en el CRM del Club (su correo normalizado); lo llena la sincronización
 alter table contactos add column if not exists ext_id text;
 
+-- La sincronización con el Club avanza por tandas: aquí se anota en qué página va y de qué vuelta (ciclo) es cada contacto
+alter table contactos add column if not exists sync_ciclo text;
+alter table config add column if not exists sync_pagina integer not null default 1;
+alter table config add column if not exists sync_ciclo text;
+alter table config add column if not exists sync_fin timestamptz;
+
 -- Avisos "este cliente renovó" que se envían al CRM del Club (api/_acceso.ts). El Club los aprueba a mano.
 -- (La tabla anterior, solicitudes_acceso, ya no se usa: se puede borrar con "drop table solicitudes_acceso".)
 create table if not exists solicitudes_renovacion (
