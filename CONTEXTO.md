@@ -27,8 +27,8 @@ Auth hacia el Club: `Authorization: Bearer <CRM_API_KEY>`. `api/_conector.ts` es
 ### Traer clientes inactivos
 - `GET /api/externo/renovaciones/inactivos?pagina=N`: páginas de 500, **cada una tarda 15–60 s**. Hoy hay **15 678 clientes** (32 páginas); las páginas que no existen dan 500. Los REVOCADOS no aparecen. `asignado` siempre viene null.
 - **Sincronización por tandas** (`api/sincronizar.ts`): no cabe en una ejecución, así que cada llamada avanza por páginas hasta ~160 s (`maxDuration` 300) y anota en `config.sync_pagina` dónde se quedó; al llegar a la última cierra el "ciclo" (`sync_ciclo`, `sync_fin`). Un candado (`config.sync_bloqueo`, caduca a 6 min) evita dos ejecuciones a la vez.
-- El **cron** corre cada 10 min (`vercel.json`), pero un ciclo nuevo solo empieza 1 h después de terminar el anterior. Un administrador puede empezar uno ya, con el botón o con `GET /api/sincronizar` + cabecera `x-codigo`.
-- El botón **Actualizar desde el Club** (`src/components/BotonClub.tsx`, en Contactos, solo admin) repite la llamada hasta `completo:true`, espera si hay otra en curso y al final recarga la lista. Un ciclo completo toma ~10–20 min.
+- El **cron** corre cada 10 min la versión **rápida** (`/api/sincronizar?rapido=1`): solo las primeras páginas (el Club entrega primero a los que vencieron más recientemente) y se detiene tras 2 páginas seguidas sin nadie nuevo (~1–2 min). **El cron no hace el ciclo completo.** El ciclo completo (todas las páginas, por tandas) lo arranca un administrador con el enlace "Sincronización completa" junto al botón, o con `GET /api/sincronizar` + cabecera `x-codigo`. (Queda en el código la lógica de descanso de 1 h entre ciclos, pero solo aplicaría si el cron llamara al completo.)
+- El botón **Actualizar desde el Club** (`src/components/BotonClub.tsx`, en Contactos, solo admin) hace la versión rápida (~1–2 min); el enlace "Sincronización completa" repite la llamada hasta `completo:true` (~10–20 min). Ambos esperan si hay otra sincronización en curso y al final recargan la lista.
 - Las notas del Club se copian una sola vez, cuando el contacto llega por primera vez. El id de contacto es sha1 del correo (o teléfono), estable entre sincronizaciones. Los errores de hoja de cálculo del Club (`#REF!`, `#N/A`…) se tratan como vacío.
 - Un cliente que deja de aparecer en el Club **no se borra** de aquí.
 
@@ -37,7 +37,7 @@ Auth hacia el Club: `Authorization: Bearer <CRM_API_KEY>`. `api/_conector.ts` es
 - **Doble verificación**: ventana "Confirma la renovación" con casilla obligatoria (`ConfirmarRenovacion.tsx`), aplicada en el punto central `actualizar` de `src/lib/crm.tsx` (cubre el botón, las etiquetas de estado de la ficha y la edición en lote). El servidor también la exige (`confirmado:true`, si no responde 400 `confirmar`).
 - Estados del aviso: `pendiente` → `enviada` → `aprobada`; `fallida` (400/404 o 8 intentos); `cancelada` (se quitó Renovado antes de que saliera); `revertida` (se quitó Renovado pero el Club ya la tenía: hay que avisarles a mano; el botón "Ya les avisé" la cierra). Si se vuelve a marcar Renovado, una revertida se reactiva sin duplicar.
 - La ficha muestra la tarjeta **Aviso al Club** con el estado y botones Enviar ahora / Reintentar / Ya les avisé (`/api/solicitudes`: `GET` lista, solo admin; `POST {id, accion: 'reenviar'|'cerrar'}`).
-- La aprobación se detecta sola: al cerrar un ciclo de sincronización, una solicitud `enviada` (o `revertida`) cuyo cliente ya no apareció entre los inactivos pasa a `aprobada` y queda una nota.
+- La aprobación se detecta **solo al cerrar un ciclo completo** (que ahora solo arranca a mano): al cerrarlo, una solicitud `enviada` (o `revertida`) cuyo cliente ya no apareció entre los inactivos pasa a `aprobada` y queda una nota.
 
 ## Decisiones tomadas
 
