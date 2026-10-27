@@ -103,7 +103,7 @@ export function FilaContacto({ c, extra }: { c: Contacto; extra?: ReactNode }) {
           <span className="block truncate text-sm font-semibold">{c.nombre}</span>
           <span className="flex items-center gap-2 text-xs text-tenue">
             <EstadoChip estado={c.estado} chico />
-            {extra ?? (c.seguimiento ? cuandoSeguimiento(c.seguimiento) : c.sede)}
+            {extra ?? (c.seguimiento ? cuandoSeguimiento(c.seguimiento) : c.pais)}
           </span>
         </span>
       </button>

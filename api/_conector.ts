@@ -67,7 +67,8 @@ export function aInactivo(f: Fila): Inactivo | null {
       tel: wa ? '+' + wa : bruto,
       pais,
       region: REGION[pais] ?? 'LATAM y otros',
-      sede: texto(f.ciudad),
+      // El campo ciudad del Club trae texto suelto (notas, errores de hoja), no ciudades: se ignora. Solo importa la región
+      sede: '',
       hojas: evento ? [evento] : ['CRM Club'],
       // la fecha que importa es cuándo se les acabó el acceso
       fecha: dia(f.fin_acceso) ?? dia(f.fecha_inscripcion),

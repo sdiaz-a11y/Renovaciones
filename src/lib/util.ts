@@ -69,9 +69,9 @@ export function linkWhatsapp(wa: string, texto?: string) {
   return `https://wa.me/${wa}${texto ? `?text=${encodeURIComponent(texto)}` : ''}`
 }
 
-/** Texto para buscar rápido (nombre, email, teléfono y sede) */
+/** Texto para buscar rápido (nombre, email, teléfono y país) */
 export function claveBusqueda(c: Contacto) {
-  return normalizar(`${c.nombre} ${c.email} ${c.sede} ${c.pais}`) + ' ' + (c.wa ?? '') + ' ' + c.tel.replace(/\D/g, '')
+  return normalizar(`${c.nombre} ${c.email} ${c.pais}`) + ' ' + (c.wa ?? '') + ' ' + c.tel.replace(/\D/g, '')
 }
 
 /** Mezcla estable por persona: dos personas del equipo no reciben la misma cola en el mismo orden */

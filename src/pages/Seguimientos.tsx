@@ -109,7 +109,7 @@ function Grupo({ titulo, cs, rojo, nota }: { titulo: string; cs: Contacto[]; roj
             c={c}
             extra={
               <span>
-                {c.seguimiento ? <span className={rojo ? 'font-semibold text-[#b8312f]' : ''}>{cuandoSeguimiento(c.seguimiento)}</span> : c.sede}
+                {c.seguimiento ? <span className={rojo ? 'font-semibold text-[#b8312f]' : ''}>{cuandoSeguimiento(c.seguimiento)}</span> : c.pais}
                 {c.asignado && <span className="text-tenue"> · {c.asignado}</span>}
               </span>
             }

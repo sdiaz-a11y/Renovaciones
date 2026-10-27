@@ -218,7 +218,7 @@ function Tarjeta({
           <Avatar nombre={c.nombre} estado={c.estado} tam={64} oscuro />
           <div className="min-w-0">
             <h2 className="font-display text-4xl leading-[0.95] font-extrabold">{c.nombre}</h2>
-            <p className="mt-1.5 text-sm text-white/70">{[c.sede, c.pais].filter(Boolean).join(' · ')}</p>
+            <p className="mt-1.5 text-sm text-white/70">{[c.pais, c.region !== c.pais ? c.region : ''].filter(Boolean).join(' · ')}</p>
           </div>
         </div>
         <div className="mt-5 flex flex-wrap items-center gap-2">

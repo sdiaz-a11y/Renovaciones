@@ -20,7 +20,6 @@ export function Contactos() {
   const busqueda = useDeferredValue(q)
   const [estados, setEstados] = useState<Set<Estado>>(new Set(filtros.estados ?? []))
   const [region, setRegion] = useState(filtros.region ?? '')
-  const [sede, setSede] = useState(filtros.sede ?? '')
   const [responsable, setResponsable] = useState(filtros.responsable ?? '')
   const [sinAsignar, setSinAsignar] = useState(!!filtros.sinAsignar)
   const [conSeguimiento, setConSeguimiento] = useState(false)
@@ -32,11 +31,6 @@ export function Contactos() {
   const [nuevo, setNuevo] = useState(false)
 
   const indice = useMemo(() => new Map(contactos.map((c) => [c.id, claveBusqueda(c)])), [contactos])
-  const sedes = useMemo(() => {
-    const n = new Map<string, number>()
-    for (const c of contactos) if (c.sede && (!region || c.region === region)) n.set(c.sede, (n.get(c.sede) ?? 0) + 1)
-    return [...n.entries()].sort((a, b) => b[1] - a[1])
-  }, [contactos, region])
 
   const filtrados = useMemo(() => {
     const t = normalizar(busqueda)
@@ -45,7 +39,6 @@ export function Contactos() {
     const lista = contactos.filter((c) => {
       if (estados.size && !estados.has(c.estado)) return false
       if (region && c.region !== region) return false
-      if (sede && c.sede !== sede) return false
       if (resp && normalizar(c.asignado) !== resp && normalizar(c.contacto) !== resp) return false
       if (sinAsignar && c.asignado) return false
       if (conSeguimiento && !c.seguimiento) return false
@@ -64,17 +57,16 @@ export function Contactos() {
       registro: (a, b) => (b.fecha ?? '').localeCompare(a.fecha ?? ''),
     }
     return lista.sort(cmp[orden])
-  }, [busqueda, conSeguimiento, contactos, estados, filtros.motivo, indice, ocultarNoContactar, orden, region, responsable, sede, sinAsignar])
+  }, [busqueda, conSeguimiento, contactos, estados, filtros.motivo, indice, ocultarNoContactar, orden, region, responsable, sinAsignar])
 
   const conteoEstados = useMemo(() => {
     const r = Object.fromEntries(ESTADOS.map((e) => [e.id, 0])) as Record<Estado, number>
     for (const c of contactos) {
       if (region && c.region !== region) continue
-      if (sede && c.sede !== sede) continue
       r[c.estado]++
     }
     return r
-  }, [contactos, region, sede])
+  }, [contactos, region])
 
   const alternarEstado = (e: Estado) => {
     setEstados((prev) => {
@@ -88,14 +80,13 @@ export function Contactos() {
   const limpiar = () => {
     setEstados(new Set())
     setRegion('')
-    setSede('')
     setResponsable('')
     setSinAsignar(false)
     setConSeguimiento(false)
     setOcultarNoContactar(false)
     setQ('')
   }
-  const hayFiltros = estados.size || region || sede || responsable || sinAsignar || conSeguimiento || ocultarNoContactar || q || filtros.motivo
+  const hayFiltros = estados.size || region || responsable || sinAsignar || conSeguimiento || ocultarNoContactar || q || filtros.motivo
 
   const visibles = filtrados.slice(0, mostrar)
   const todosSel = filtrados.length > 0 && filtrados.every((c) => seleccion.has(c.id))
@@ -164,20 +155,12 @@ export function Contactos() {
           })}
         </div>
 
-        <div className={`${verFiltros ? 'grid' : 'hidden'} grid-cols-2 gap-2 lg:grid lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]`}>
-          <select className="campo" value={region} onChange={(e) => (setRegion(e.target.value), setSede(''))}>
+        <div className={`${verFiltros ? 'grid' : 'hidden'} grid-cols-2 gap-2 lg:grid lg:grid-cols-[repeat(3,minmax(0,1fr))_auto]`}>
+          <select className="campo" value={region} onChange={(e) => setRegion(e.target.value)}>
             <option value="">Todas las regiones</option>
             <option>México</option>
             <option>EUA</option>
             <option>LATAM y otros</option>
-          </select>
-          <select className="campo" value={sede} onChange={(e) => setSede(e.target.value)}>
-            <option value="">Todas las sedes</option>
-            {sedes.map(([s, n]) => (
-              <option key={s} value={s}>
-                {s} ({n})
-              </option>
-            ))}
           </select>
           {esAdmin ? (
             <select className="campo" value={responsable} onChange={(e) => setResponsable(e.target.value)}>
@@ -322,13 +305,12 @@ function Renglon({ c, admin, seleccionado, alternar, abrir }: { c: Contacto; adm
                 <CalendarClock size={11} /> {cuandoSeguimiento(c.seguimiento)}
               </span>
             )}
-            {c.sede && <span className="text-[11px] text-tenue">{c.sede}</span>}
           </div>
         </div>
       </div>
       <p className="hidden truncate text-sm text-tinta-2 md:block">
-        {c.sede || '—'}
-        <span className="block text-xs text-tenue">{c.pais}</span>
+        {c.pais || '—'}
+        {c.region !== c.pais && <span className="block text-xs text-tenue">{c.region}</span>}
       </p>
       <span className="hidden md:block">
         <EstadoChip estado={c.estado} />

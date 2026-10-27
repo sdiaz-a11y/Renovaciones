@@ -73,7 +73,7 @@ function Contenido({ c, cerrar }: { c: Contacto; cerrar: () => void }) {
             <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-white/70">
               <span className="inline-flex items-center gap-1">
                 <MapPin size={13} />
-                {[c.sede, c.pais].filter(Boolean).join(' · ') || 'Sin ubicación'}
+                {[c.pais, c.region !== c.pais ? c.region : ''].filter(Boolean).join(' · ') || 'Sin ubicación'}
               </span>
               {c.fecha && <span>· registro {fechaCorta(c.fecha)}</span>}
             </p>

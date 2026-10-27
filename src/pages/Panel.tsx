@@ -113,7 +113,7 @@ export function Panel() {
       </div>
 
       <div className="grid gap-5 lg:grid-cols-12">
-        <Sedes contactos={contactos} />
+        <Regiones contactos={contactos} />
         <Rendimiento contactos={contactos} />
       </div>
 
@@ -235,39 +235,18 @@ function Agenda({ contactos }: { contactos: Contacto[] }) {
   )
 }
 
-function Sedes({ contactos }: { contactos: Contacto[] }) {
+/** Cuántos vencidos hay en México, EUA y el resto de LATAM (lo único de ubicación que el Club trae limpio) */
+function Regiones({ contactos }: { contactos: Contacto[] }) {
   const { ir } = useNav()
-  const [region, setRegion] = useState('México')
-  const cs = contactos.filter((c) => c.region === region)
-  const grupos = new Map<string, Contacto[]>()
-  for (const c of cs) if (c.sede) grupos.set(c.sede, [...(grupos.get(c.sede) ?? []), c])
-  const filas: Fila[] = [...grupos.entries()]
-    .sort((a, b) => b[1].length - a[1].length)
-    .slice(0, 10)
-    .map(([s, l]) => {
-      const pos = l.filter((c) => c.estado === 'interesado' || c.estado === 'renovado').length
-      return { clave: s, label: s, valor: l.length, detalle: pos ? `${pos} ✓` : undefined }
-    })
-  const sinSede = cs.filter((c) => !c.sede).length
+  const filas: Fila[] = REGIONES.map((r) => {
+    const l = contactos.filter((c) => c.region === r)
+    const pos = l.filter((c) => c.estado === 'interesado' || c.estado === 'renovado').length
+    return { clave: r, label: r, valor: l.length, detalle: pos ? `${pos} ✓` : undefined }
+  }).filter((f) => f.valor)
   return (
-    <Seccion
-      kicker="Dónde están"
-      titulo="Sedes con más vencidos"
-      className="lg:col-span-6"
-      accion={
-        <div className="flex rounded-xl bg-papel p-0.5 text-xs font-semibold">
-          {REGIONES.map((r) => (
-            <button key={r} onClick={() => setRegion(r)} className={`rounded-lg px-2.5 py-1.5 ${region === r ? 'bg-white shadow-tarjeta' : 'text-tenue'}`}>
-              {r === 'LATAM y otros' ? 'LATAM' : r}
-            </button>
-          ))}
-        </div>
-      }
-    >
-      {filas.length ? <Barras filas={filas} alElegir={(s) => ir('contactos', { region, sede: s })} /> : <p className="text-sm text-tenue">Sin sedes registradas.</p>}
-      <p className="mt-3 text-xs text-tenue">
-        ✓ = interesados o renovados. {sinSede ? `${num(sinSede)} personas de ${region} no tienen sede en el Excel.` : ''}
-      </p>
+    <Seccion kicker="Dónde están" titulo="Vencidos por región" className="lg:col-span-6">
+      {filas.length ? <Barras filas={filas} alElegir={(region) => ir('contactos', { region })} /> : <p className="text-sm text-tenue">Sin contactos todavía.</p>}
+      <p className="mt-3 text-xs text-tenue">✓ = interesados o renovados. Toca una barra para ver esa región en Contactos.</p>
     </Seccion>
   )
 }
