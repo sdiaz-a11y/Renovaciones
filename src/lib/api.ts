@@ -118,12 +118,15 @@ export interface RespSincronizar {
   contactos?: number
   nuevos?: number
   aprobadas?: number
+  /** páginas revisadas (modo rápido) */
+  paginas?: number
   /** otra sincronización está corriendo */
   ocupado?: boolean
 }
 
 export const api = {
-  sincronizar: (s: Sesion) => pedir<RespSincronizar>('/api/sincronizar', s),
+  /** `rapido`: solo lo más reciente (1-2 min); sin él, la sincronización completa por tandas */
+  sincronizar: (s: Sesion, rapido = false) => pedir<RespSincronizar>(rapido ? '/api/sincronizar?rapido=1' : '/api/sincronizar', s),
   sesion: (s: Pick<Sesion, 'codigo' | 'nombre'>) => pedir<{ rol: Rol; nombre: string }>('/api/sesion', { ...s, rol: 'usuario' }),
   contactos: (s: Sesion) => pedir<Carga>('/api/contactos', s),
   cambios: (s: Sesion, desde: number) => pedir<Delta>(`/api/cambios?desde=${desde}`, s),

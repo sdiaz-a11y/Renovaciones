@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer'
 import { timingSafeEqual } from 'node:crypto'
 import { enviadas, marcarAprobada, reenviarPendientes } from './_acceso.js'
-import { traerPagina } from './_conector.js'
+import { traerPagina, type Inactivo } from './_conector.js'
 import { autenticar, db, error, ok, okNull, registrar, sinCache } from './_lib.js'
 
 /**
@@ -44,7 +44,69 @@ async function permitido(req: Request): Promise<'cron' | 'admin' | Response> {
  */
 const PROTEGIDAS = ['estado', 'contacto', 'estado_crm', 'asignado_crm', 'contacto_crm', 'motivo', 'no_contactar', 'seguimiento', 'nuevo', 'v', 'at', 'por']
 
-const trozos =<T>(lista: T[], n: number) => Array.from({ length: Math.ceil(lista.length / n) }, (_, i) => lista.slice(i * n, i * n + n))
+const trozos = <T>(lista: T[], n: number) => Array.from({ length: Math.ceil(lista.length / n) }, (_, i) => lista.slice(i * n, i * n + n))
+
+/** Guarda una página de clientes (datos de origen) y copia las notas del Club de los que llegan por primera vez */
+async function guardarPagina(clientes: Inactivo[], ciclo: string | null) {
+  const conocidos = new Set<string>()
+  for (const lote of trozos(clientes, 200)) {
+    for (const f of ok(await db().from('contactos').select('id').in('id', lote.map((i) => i.contacto.id)))) conocidos.add(f.id)
+  }
+  const filas = clientes.map(({ contacto: c, extId }) => ({
+    id: c.id,
+    ext_id: extId,
+    nombre: c.nombre,
+    email: c.email,
+    wa: c.wa,
+    tel: c.tel,
+    pais: c.pais,
+    region: c.region,
+    sede: c.sede,
+    hojas: c.hojas,
+    fecha: c.fecha,
+    asignado: c.asignado,
+    // la marca del ciclo solo la pone la sincronización completa
+    ...(ciclo ? { sync_ciclo: ciclo } : {}),
+  }))
+  const pisadas = PROTEGIDAS.filter((k) => filas.some((f) => k in f))
+  if (pisadas.length) throw new Error(`La sincronización intentó escribir columnas del equipo: ${pisadas.join(', ')}`)
+  for (const lote of trozos(filas, 500)) ok(await db().from('contactos').upsert(lote, { onConflict: 'id' }))
+  const notas = clientes
+    .filter((i) => !conocidos.has(i.contacto.id))
+    .flatMap((i) =>
+      i.notas.map((n) => ({ contacto_id: i.contacto.id, texto: n.t, fecha: n.f ?? null, hoja: n.h ?? null, por: n.por ?? null, origen: 'crm' })),
+    )
+  for (const lote of trozos(notas, 500)) ok(await db().from('notas').insert(lote))
+  return { contactos: filas.length, nuevos: filas.length - conocidos.size }
+}
+
+// El Club entrega los inactivos del vencimiento más reciente al más antiguo: los que acaban de caer están en las primeras páginas
+const MAX_RAPIDA = 8
+const LIMPIAS_PARA_PARAR = 2
+
+/**
+ * Sincronización rápida (botón de la app): solo las primeras páginas, hasta encontrar ${LIMPIAS_PARA_PARAR} seguidas sin nadie nuevo.
+ * No toca el ciclo completo ni detecta aprobaciones: eso lo hace el ciclo completo del cron.
+ */
+async function rapida(inicio: number) {
+  let contactos = 0
+  let nuevos = 0
+  let paginas = 0
+  let limpias = 0
+  for (let pagina = 1; pagina <= MAX_RAPIDA && Date.now() - inicio < PRESUPUESTO_MS; pagina++) {
+    const { clientes, hayMas } = await traerPagina(pagina)
+    if (!clientes.length && pagina === 1) throw new Error('vacio')
+    const r = await guardarPagina(clientes, null)
+    contactos += r.contactos
+    nuevos += r.nuevos
+    paginas++
+    limpias = r.nuevos === 0 ? limpias + 1 : 0
+    if (!hayMas || limpias >= LIMPIAS_PARA_PARAR) break
+  }
+  ok(await db().from('config').update({ base_generado: new Date().toISOString(), base_fuente: 'CRM del Club' }).eq('id', true))
+  if (nuevos) await registrar('Sistema', `trajo ${nuevos} clientes nuevos del CRM del Club`)
+  return { contactos, nuevos, paginas }
+}
 
 async function sincronizar(req: Request) {
   const quien = await permitido(req)
@@ -60,6 +122,10 @@ async function sincronizar(req: Request) {
   if (!candado.data.length) return Response.json({ ok: true, ocupado: true }, { headers: sinCache })
   try {
     const reenviadas = await reenviarPendientes()
+
+    if (new URL(req.url).searchParams.get('rapido') === '1') {
+      return Response.json({ ok: true, rapido: true, completo: true, ...(await rapida(inicio)), reenviadas }, { headers: sinCache })
+    }
 
     const cfg = ok(await db().from('config').select('sync_pagina, sync_ciclo, sync_fin').eq('id', true).single())
     let ciclo: string | null = cfg.sync_ciclo
@@ -82,37 +148,9 @@ async function sincronizar(req: Request) {
       // Una primera página vacía casi seguro es un fallo del otro lado: no se toca nada
       if (!clientes.length && pagina === 1) return Response.json({ error: 'vacio' }, { status: 502 })
 
-      const conocidos = new Set<string>()
-      for (const lote of trozos(clientes, 200)) {
-        for (const f of ok(await db().from('contactos').select('id').in('id', lote.map((i) => i.contacto.id)))) conocidos.add(f.id)
-      }
-      const filas = clientes.map(({ contacto: c, extId }) => ({
-        id: c.id,
-        ext_id: extId,
-        nombre: c.nombre,
-        email: c.email,
-        wa: c.wa,
-        tel: c.tel,
-        pais: c.pais,
-        region: c.region,
-        sede: c.sede,
-        hojas: c.hojas,
-        fecha: c.fecha,
-        asignado: c.asignado,
-        sync_ciclo: ciclo,
-      }))
-      const pisadas = PROTEGIDAS.filter((k) => filas.some((f) => k in f))
-      if (pisadas.length) throw new Error(`La sincronización intentó escribir columnas del equipo: ${pisadas.join(', ')}`)
-      for (const lote of trozos(filas, 500)) ok(await db().from('contactos').upsert(lote, { onConflict: 'id' }))
-      const notas = clientes
-        .filter((i) => !conocidos.has(i.contacto.id))
-        .flatMap((i) =>
-          i.notas.map((n) => ({ contacto_id: i.contacto.id, texto: n.t, fecha: n.f ?? null, hoja: n.h ?? null, por: n.por ?? null, origen: 'crm' })),
-        )
-      for (const lote of trozos(notas, 500)) ok(await db().from('notas').insert(lote))
-
-      contactos += filas.length
-      nuevos += filas.length - conocidos.size
+      const r = await guardarPagina(clientes, ciclo)
+      contactos += r.contactos
+      nuevos += r.nuevos
       pagina++
       ok(await db().from('config').update({ sync_pagina: pagina }).eq('id', true))
       if (!hayMas) {
@@ -157,6 +195,7 @@ async function sincronizar(req: Request) {
     }
     return Response.json({ ok: true, completo, siguientePagina: completo ? null : pagina, contactos, nuevos, aprobadas, reenviadas }, { headers: sinCache })
   } catch (err) {
+    if ((err as Error).message === 'vacio') return Response.json({ error: 'vacio' }, { status: 502 })
     if ((err as Error).message === 'sin-conector') return Response.json({ error: 'sin-conector' }, { status: 503 })
     return error(err)
   } finally {
