@@ -33,7 +33,7 @@ export async function POST(req: Request) {
 
     if (body.accion === 'cerrar') {
       if (s.estado !== 'revertida') return Response.json({ error: 'estado' }, { status: 409 })
-      await cerrarRevertida(s.id)
+      await cerrarRevertida(s, q.nombre)
     } else {
       if (!configurado()) return Response.json({ error: 'sin-conector' }, { status: 503 })
       // Solo se reenvía lo que no llegó; una fallida vuelve a empezar (el mismo solicitud_id evita duplicados del otro lado)

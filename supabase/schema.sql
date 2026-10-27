@@ -157,7 +157,9 @@ begin
 end $$;
 
 -- Edita uno o varios contactos. p_ed: {estado, asignado, contacto, seguimiento, motivo, noContactar, nota} (solo lo presente cambia)
-create or replace function crm_editar(p_ids text[], p_ed jsonb, p_por text, p_texto text, p_nombre text, p_estado text)
+-- (la versión anterior, sin p_detalle, se borra para que no queden dos funciones con el mismo nombre)
+drop function if exists crm_editar(text[], jsonb, text, text, text, text);
+create or replace function crm_editar(p_ids text[], p_ed jsonb, p_por text, p_texto text, p_nombre text, p_estado text, p_detalle text default null)
 returns bigint language plpgsql security definer set search_path = public as $$
 declare v_v bigint; v_at timestamptz := now();
 begin
@@ -172,7 +174,12 @@ begin
     no_contactar = case when p_ed ? 'noContactar' then (p_ed->>'noContactar')::boolean else no_contactar end,
     v = v_v, at = v_at, por = p_por
   where id = any(p_ids);
-  -- la línea de tiempo registra notas y cambios de estado (nota vacía = solo el cambio de estado)
+  -- la línea de tiempo registra TODO cambio: primero el detalle (responsable, seguimiento, motivo, no contactar)...
+  if coalesce(p_detalle, '') <> '' then
+    insert into notas (contacto_id, texto, fecha, por, hoja, origen)
+    select id, p_detalle, v_at::text, p_por, 'cambio', 'crm' from contactos where id = any(p_ids);
+  end if;
+  -- ...y luego las notas y cambios de estado (nota vacía = solo el cambio de estado)
   if p_ed ? 'nota' or p_ed ? 'estado' then
     insert into notas (contacto_id, texto, fecha, por, estado, origen)
     select id, coalesce(p_ed->>'nota', ''), v_at::text, p_por, p_ed->>'estado', 'crm'
@@ -202,4 +209,4 @@ begin
 end $$;
 
 revoke all on function intento_fallido(text), crm_actividad(text, text, text, text, text),
-  crm_editar(text[], jsonb, text, text, text, text), crm_nuevo(jsonb, text, text) from public, anon, authenticated;
+  crm_editar(text[], jsonb, text, text, text, text, text), crm_nuevo(jsonb, text, text) from public, anon, authenticated;

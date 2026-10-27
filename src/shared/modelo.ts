@@ -298,6 +298,27 @@ export function describir(e: Edicion): string {
   return partes.join(' · ')
 }
 
+const MES_CORTO = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+const diaCorto = (iso: string) => {
+  const [, m, d] = iso.split('-').map(Number)
+  return m && d ? `${d} ${MES_CORTO[m - 1]}` : iso
+}
+
+/**
+ * Los cambios de una edición que se anotan en la línea de tiempo del contacto como una entrada propia
+ * (la nota y el cambio de estado ya tienen la suya). Vacío si no hay nada que anotar.
+ */
+export function describirDetalle(e: Edicion): string {
+  const partes: string[] = []
+  if (e.motivo && !e.estado) partes.push(`motivo: ${MOTIVOS[e.motivo]}`)
+  if (e.asignado !== undefined) partes.push(e.asignado ? `asignado a ${e.asignado}` : 'sin responsable')
+  if (e.seguimiento) partes.push(`próximo seguimiento: ${diaCorto(e.seguimiento)}`)
+  else if (e.seguimiento === null && !e.estado) partes.push('seguimiento quitado')
+  if (e.noContactar !== undefined) partes.push(e.noContactar ? 'marcado como NO CONTACTAR' : 'se puede volver a contactar')
+  const t = partes.join(' · ')
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : ''
+}
+
 /** Aplica una edición sobre el cambio acumulado de un contacto */
 export function acumular(prev: Cambio | undefined, e: Edicion, v: number, at: string, por: string): Cambio {
   const c: Cambio = { ...prev, v, at, por }

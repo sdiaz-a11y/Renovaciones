@@ -26,6 +26,15 @@ interface Solicitud {
   intentos: number
 }
 
+/** Anota un hecho del aviso al Club en la línea de tiempo del contacto (si falla, no se interrumpe nada) */
+async function anotar(contactoIds: string[], texto: string, por = 'Sistema') {
+  if (!contactoIds.length) return
+  const { error } = await db()
+    .from('notas')
+    .insert(contactoIds.map((contacto_id) => ({ contacto_id, texto, fecha: new Date().toISOString(), por, hoja: 'cambio', origen: 'crm' })))
+  if (error) console.error(error.message)
+}
+
 /**
  * Deja una solicitud pendiente por cada contacto que no tenga una abierta. Devuelve las nuevas.
  * Si el contacto tenía una revertida (el Club aún la tiene) se reactiva en vez de crear otra.
@@ -63,8 +72,10 @@ export async function crearSolicitudes(contactoIds: string[], por: string, nota?
  */
 export async function revertirSolicitudes(contactoIds: string[]): Promise<{ canceladas: number; revertidas: string[] }> {
   if (!contactoIds.length) return { canceladas: 0, revertidas: [] }
-  const canceladas = ok(await db().from(TABLA).update({ estado: 'cancelada' }).in('contacto_id', contactoIds).eq('estado', 'pendiente').select('id'))
+  const canceladas = ok(await db().from(TABLA).update({ estado: 'cancelada' }).in('contacto_id', contactoIds).eq('estado', 'pendiente').select('contacto_id'))
   const revertidas = ok(await db().from(TABLA).update({ estado: 'revertida' }).in('contacto_id', contactoIds).eq('estado', 'enviada').select('contacto_id'))
+  await anotar(canceladas.map((f) => f.contacto_id), 'Se canceló el aviso de renovación: todavía no había salido hacia el CRM del Club.')
+  await anotar(revertidas.map((f) => f.contacto_id), 'Se quitó «Renovado», pero el CRM del Club ya tenía el aviso: hay que avisarles que no procede.')
   return { canceladas: canceladas.length, revertidas: revertidas.map((f) => f.contacto_id) }
 }
 
@@ -111,6 +122,8 @@ export async function enviar(s: Solicitud): Promise<Solicitud['estado']> {
       .eq('id', s.id)
       .eq('estado', s.estado),
   )
+  if (estado === 'enviada') await anotar([s.contacto_id], 'Se avisó al CRM del Club de esta renovación; falta que un administrador de allá la apruebe.')
+  if (estado === 'fallida') await anotar([s.contacto_id], `No se pudo avisar al CRM del Club de esta renovación: ${detalle ?? 'error desconocido'}.`)
   return estado
 }
 
@@ -131,7 +144,10 @@ export async function enviadas(): Promise<Solicitud[]> {
 export const marcarAprobada = async (id: string) => okNull(await db().from(TABLA).update({ estado: 'aprobada' }).eq('id', id))
 
 /** "Ya les avisé": la persona del equipo avisó al Club a mano que esa renovación no procede */
-export const cerrarRevertida = async (id: string) => okNull(await db().from(TABLA).update({ estado: 'cancelada' }).eq('id', id).eq('estado', 'revertida'))
+export async function cerrarRevertida(s: Pick<Solicitud, 'id' | 'contacto_id'>, por: string) {
+  okNull(await db().from(TABLA).update({ estado: 'cancelada' }).eq('id', s.id).eq('estado', 'revertida'))
+  await anotar([s.contacto_id], 'Ya se avisó al CRM del Club que esta renovación no procede.', por)
+}
 
 export const TABLA_SOLICITUDES = TABLA
 export type { Solicitud }

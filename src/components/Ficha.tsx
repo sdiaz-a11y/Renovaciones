@@ -283,7 +283,7 @@ function Contenido({ c, cerrar }: { c: Contacto; cerrar: () => void }) {
                     )}
                     {n.e && <EstadoChip estado={n.e} chico />}
                   </div>
-                  {n.t && <p className="mt-0.5 text-sm">{n.t}</p>}
+                  {n.t && <p className={n.h === 'cambio' ? 'mt-0.5 text-[13px] text-tinta-2' : 'mt-0.5 text-sm'}>{n.t}</p>}
                 </li>
               ))}
             </ol>

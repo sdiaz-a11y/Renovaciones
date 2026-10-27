@@ -164,7 +164,7 @@ function Motivos({ contactos }: { contactos: Contacto[] }) {
     ? no
         .filter((c) => (c.motivo ?? 'sin_motivo') === activo)
         // la última nota escrita por una persona (no la etiqueta del motivo, que se guarda sola cuando no escriben nada)
-        .map((c) => ({ c, t: [...c.notas].reverse().find((n) => n.t && n.t.length > 12 && !Object.values(MOTIVOS).includes(n.t))?.t }))
+        .map((c) => ({ c, t: [...c.notas].reverse().find((n) => n.t && n.t.length > 12 && n.h !== 'cambio' && !Object.values(MOTIVOS).includes(n.t))?.t }))
         .filter((x) => x.t)
         .slice(0, 4)
     : []

@@ -1,4 +1,4 @@
-import { describir, LIMITES, limpiarEdicion } from '../src/shared/modelo.js'
+import { describir, describirDetalle, LIMITES, limpiarEdicion } from '../src/shared/modelo.js'
 import { crearSolicitudes, enviar, revertirSolicitudes } from './_acceso.js'
 import { autenticar, contactosPorId, db, error, ok, puedeVer, sinCache } from './_lib.js'
 
@@ -32,6 +32,7 @@ export async function POST(req: Request) {
         p_texto: describir(edicion),
         p_nombre: nombre,
         p_estado: edicion.estado ?? null,
+        p_detalle: describirDetalle(edicion) || null,
       }),
     )
 
