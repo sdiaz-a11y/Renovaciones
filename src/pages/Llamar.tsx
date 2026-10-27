@@ -5,7 +5,7 @@ import { Resultado } from '../components/Resultado'
 import { Avatar, BotonLlamar, BotonWhatsapp, EstadoChip, Vacio } from '../components/ui'
 import { useCRM } from '../lib/crm'
 import { useNav } from '../lib/nav'
-import { copiar, cuandoSeguimiento, fechaCorta, haceCuanto, hoy, normalizar, num, ordenEstable, semilla } from '../lib/util'
+import { copiar, cuandoSeguimiento, haceCuanto, hoy, normalizar, num, ordenEstable, porVencimiento, semilla, textoVencimiento } from '../lib/util'
 import type { Contacto, Estado } from '../shared/modelo'
 
 type Cola = 'agenda' | 'pendiente' | 'sin_respuesta' | 'contactado' | 'interesado'
@@ -56,7 +56,8 @@ export function Llamar() {
     }
     // Orden distinto para cada persona del equipo: no se pisan llamando a los mismos
     for (const k of ['pendiente', 'sin_respuesta', 'contactado'] as const) {
-      porCola[k].sort((a, b) => ordenEstable(a.id, seed) - ordenEstable(b.id, seed))
+      // Primero los que vencieron hace poco; entre los del mismo día, el orden propio de cada persona
+      porCola[k].sort((a, b) => porVencimiento(a, b) || ordenEstable(a.id, seed) - ordenEstable(b.id, seed))
     }
     return porCola
   }, [contactos, h, persona, region, seed, sesion.nombre])
@@ -230,7 +231,7 @@ function Tarjeta({
               <CalendarClock size={13} /> {cuandoSeguimiento(c.seguimiento)}
             </span>
           )}
-          {c.fecha && <span className="pildora border-white/20 text-white/70">Registro {fechaCorta(c.fecha)}</span>}
+          {c.fecha && <span className="pildora border-white/20 text-white/70">{textoVencimiento(c.fecha)}</span>}
         </div>
         <button onClick={copiado} className="mt-5 flex items-center gap-2 font-mono text-xl tracking-wide text-white hover:text-miel">
           {c.tel} <Copy size={16} className="opacity-60" />

@@ -7,11 +7,11 @@ import { NuevoContactoModal } from '../components/NuevoContacto'
 import { Avatar, BotonWhatsapp, EstadoChip, Vacio } from '../components/ui'
 import { useCRM } from '../lib/crm'
 import { useNav } from '../lib/nav'
-import { claveBusqueda, cuandoSeguimiento, descargarCSV, hoy, normalizar, num } from '../lib/util'
+import { claveBusqueda, cuandoSeguimiento, descargarCSV, hoy, normalizar, num, porVencimiento, textoVencimiento } from '../lib/util'
 import { ESTADO, ESTADOS, MOTIVOS, type Contacto, type Estado } from '../shared/modelo'
 
 const PASO = 60
-type Orden = 'nombre' | 'reciente' | 'seguimiento' | 'registro'
+type Orden = 'vencimiento' | 'nombre' | 'reciente' | 'seguimiento'
 
 export function Contactos() {
   const { contactos, esAdmin, equipo, actualizar, avisar } = useCRM()
@@ -24,7 +24,7 @@ export function Contactos() {
   const [sinAsignar, setSinAsignar] = useState(!!filtros.sinAsignar)
   const [conSeguimiento, setConSeguimiento] = useState(false)
   const [ocultarNoContactar, setOcultarNoContactar] = useState(false)
-  const [orden, setOrden] = useState<Orden>('nombre')
+  const [orden, setOrden] = useState<Orden>('vencimiento')
   const [mostrar, setMostrar] = useState(PASO)
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set())
   const [verFiltros, setVerFiltros] = useState(false)
@@ -54,7 +54,7 @@ export function Contactos() {
       nombre: (a, b) => a.nombre.localeCompare(b.nombre, 'es'),
       reciente: (a, b) => (b.at ?? '').localeCompare(a.at ?? ''),
       seguimiento: (a, b) => (a.seguimiento ?? '9999').localeCompare(b.seguimiento ?? '9999'),
-      registro: (a, b) => (b.fecha ?? '').localeCompare(a.fecha ?? ''),
+      vencimiento: (a, b) => porVencimiento(a, b) || a.nombre.localeCompare(b.nombre, 'es'),
     }
     return lista.sort(cmp[orden])
   }, [busqueda, conSeguimiento, contactos, estados, filtros.motivo, indice, ocultarNoContactar, orden, region, responsable, sinAsignar])
@@ -173,10 +173,10 @@ export function Contactos() {
             <span className="hidden lg:block" />
           )}
           <select className="campo" value={orden} onChange={(e) => setOrden(e.target.value as Orden)}>
+            <option value="vencimiento">Ordenar: venció más reciente</option>
             <option value="nombre">Ordenar: nombre</option>
             <option value="reciente">Ordenar: actividad reciente</option>
             <option value="seguimiento">Ordenar: próximo seguimiento</option>
-            <option value="registro">Ordenar: registro más nuevo</option>
           </select>
           <div className="col-span-2 flex flex-wrap items-center gap-1.5 lg:col-span-1">
             {esAdmin && <Interruptor on={sinAsignar} cambiar={setSinAsignar} texto="Sin asignar" />}
@@ -298,6 +298,7 @@ function Renglon({ c, admin, seleccionado, alternar, abrir }: { c: Contacto; adm
             {c.noContactar && <ShieldAlert size={14} className="shrink-0 text-[#c0302f]" aria-label="No contactar" />}
           </p>
           <p className="truncate text-xs text-tenue">{ultima ?? (c.email || c.tel)}</p>
+          {c.fecha && <p className="text-[11px] text-tenue">{textoVencimiento(c.fecha)}</p>}
           <div className="mt-1 flex flex-wrap items-center gap-1.5 md:hidden">
             <EstadoChip estado={c.estado} chico />
             {c.seguimiento && (

@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { CalendarClock, CircleCheckBig, Clock, Copy, FileSpreadsheet, Mail, MapPin, Send, ShieldAlert, StickyNote, TriangleAlert, UserRound, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useCRM } from '../lib/crm'
-import { copiar, cuandoSeguimiento, fechaCorta, haceCuanto, hoy } from '../lib/util'
+import { copiar, cuandoSeguimiento, fechaCorta, haceCuanto, hoy, textoVencimiento } from '../lib/util'
 import { ESTADO, ESTADOS, MOTIVOS, type Contacto, type Motivo } from '../shared/modelo'
 import { Resultado } from './Resultado'
 import { Avatar, BotonLlamar, BotonWhatsapp, EstadoChip } from './ui'
@@ -75,7 +75,7 @@ function Contenido({ c, cerrar }: { c: Contacto; cerrar: () => void }) {
                 <MapPin size={13} />
                 {[c.pais, c.region !== c.pais ? c.region : ''].filter(Boolean).join(' · ') || 'Sin ubicación'}
               </span>
-              {c.fecha && <span>· registro {fechaCorta(c.fecha)}</span>}
+              {c.fecha && <span>· {textoVencimiento(c.fecha).toLowerCase()}</span>}
             </p>
           </div>
         </div>

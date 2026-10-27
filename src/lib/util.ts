@@ -19,6 +19,24 @@ export function hoy(dias = 0) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/**
+ * Orden por vencimiento: los que se les acabó hace poco arriba y los de hace mucho al final.
+ * Las fechas futuras (el Club trae ~10% de inactivos con fin de acceso por venir) y las vacías van hasta abajo.
+ */
+export function porVencimiento(a: { fecha: string | null }, b: { fecha: string | null }) {
+  const h = hoy()
+  const grupo = (f: string | null) => (!f ? 2 : f > h ? 1 : 0)
+  const ga = grupo(a.fecha)
+  const gb = grupo(b.fecha)
+  if (ga !== gb) return ga - gb
+  if (ga === 0) return b.fecha!.localeCompare(a.fecha!)
+  if (ga === 1) return a.fecha!.localeCompare(b.fecha!)
+  return 0
+}
+
+/** "Venció 12 ago" / "Vence 3 mar 2027" */
+export const textoVencimiento = (fecha: string | null) => (fecha ? `${fecha > hoy() ? "Vence" : "Venció"} ${fechaCorta(fecha)}` : "")
+
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
 export function fechaCorta(iso?: string | null) {
