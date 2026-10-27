@@ -166,6 +166,8 @@ export interface Usuario {
   activo: boolean
   creado: string
   ultimoAcceso?: string
+  /** Foto de perfil (data URL JPEG); solo viaja en la lista de cuentas del administrador */
+  foto?: string
 }
 
 /** Lo que el navegador sí puede ver de una cuenta */

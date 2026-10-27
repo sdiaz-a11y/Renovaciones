@@ -119,7 +119,7 @@ function Cuentas({
             return (
               <li key={u.id} className={`py-3 ${u.activo ? '' : 'opacity-55'}`}>
                 <div className="flex flex-wrap items-center gap-3">
-                  <Avatar nombre={u.nombre} tam={38} />
+                  <Avatar nombre={u.nombre} tam={38} foto={u.foto} />
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-2 font-semibold">
                       {u.nombre}

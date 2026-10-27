@@ -134,6 +134,15 @@ alter table solicitudes_renovacion add constraint solicitudes_renovacion_estado_
 create unique index if not exists solicitudes_abierta_idx on solicitudes_renovacion (contacto_id) where estado in ('pendiente', 'enviada');
 alter table solicitudes_renovacion enable row level security;
 
+-- Foto de perfil de cada persona del equipo (JPEG pequeño en base64, ya reducido en el navegador).
+-- clave = id de la cuenta, o "maestro:<nombre>" para quien entra con el código del administrador principal
+create table if not exists fotos (
+  clave       text primary key,
+  foto        text not null,
+  actualizada timestamptz not null default now()
+);
+alter table fotos enable row level security;
+
 -- Los cambios que modifican contactos se guardan con un candado: así la versión (v) sube en el mismo
 -- orden en que se confirman y ningún navegador se salta un cambio al pedir "lo nuevo desde la versión N".
 

@@ -25,7 +25,8 @@ export async function GET(req: Request) {
   if (q instanceof Response) return q
   try {
     const filas = ok(await db().from('usuarios').select('*').order('creado'))
-    return Response.json({ usuarios: filas.map(aUsuario).map(publico) }, { headers: sinCache })
+    const fotos = new Map(ok(await db().from('fotos').select('clave, foto').in('clave', filas.map((f) => f.id))).map((f) => [f.clave, f.foto]))
+    return Response.json({ usuarios: filas.map((f) => ({ ...publico(aUsuario(f)), ...(fotos.has(f.id) ? { foto: fotos.get(f.id) } : {}) })) }, { headers: sinCache })
   } catch (err) {
     return error(err)
   }

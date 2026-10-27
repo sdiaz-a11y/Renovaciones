@@ -135,6 +135,8 @@ export const api = {
   nuevo: (s: Sesion, datos: NuevoContacto) => pedir<{ v: number; contacto: Contacto }>('/api/nuevo', s, datos),
   config: (s: Sesion, datos: { plantillas?: Plantilla[]; meta?: number | null }) =>
     pedir<{ v: number; plantillas?: Plantilla[]; meta: number | null }>('/api/config', s, datos),
+  foto: (s: Sesion) => pedir<{ foto: string | null }>('/api/foto', s),
+  guardarFoto: (s: Sesion, foto: string | null) => pedir<{ foto: string | null }>('/api/foto', s, { foto }),
   usuarios: (s: Sesion) => pedir<{ usuarios: UsuarioPublico[] }>('/api/usuarios', s),
   usuario: (
     s: Sesion,

@@ -18,8 +18,11 @@ export function EstadoChip({ estado, chico }: { estado: Estado; chico?: boolean 
   )
 }
 
-export function Avatar({ nombre, estado, tam = 40, oscuro }: { nombre: string; estado?: Estado; tam?: number; oscuro?: boolean }) {
+export function Avatar({ nombre, estado, tam = 40, oscuro, foto }: { nombre: string; estado?: Estado; tam?: number; oscuro?: boolean; foto?: string | null }) {
   const color = estado ? ESTADO[estado].color : '#9b2c22'
+  if (foto) {
+    return <img src={foto} alt="" className="shrink-0 rounded-full object-cover" style={{ width: tam, height: tam, boxShadow: `0 0 0 ${oscuro ? 2 : 1}px ${color}${oscuro ? '' : '66'}` }} />
+  }
   return (
     <span
       className="inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-tinta"

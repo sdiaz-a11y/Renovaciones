@@ -20,6 +20,9 @@ interface CRM {
   actualizar: (ids: string[], edicion: Edicion) => Promise<boolean>
   nuevo: (datos: NuevoContacto) => Promise<Contacto | null>
   guardarConfig: (datos: { plantillas?: Plantilla[]; meta?: number | null }) => Promise<boolean>
+  /** Foto de perfil de quien tiene la sesión abierta */
+  foto: string | null
+  guardarFoto: (foto: string | null) => Promise<boolean>
   /** Reenvía el aviso de renovación al Club, o confirma que ya se le avisó a mano que no procede */
   avisoClub: (solicitudId: string, accion: 'reenviar' | 'cerrar') => Promise<boolean>
   /** Vuelve a bajar todos los contactos (la sincronización con el Club no sube la versión, así que el sondeo no los ve) */
@@ -70,6 +73,7 @@ export function ProveedorCRM({
   const [meta, setMeta] = useState(inicial.meta)
   // Doble verificación de "Renovado": mientras haya una pendiente se muestra la ventana de confirmación
   const [confirmando, setConfirmando] = useState<{ contactos: Contacto[]; responder: (ok: boolean) => void } | null>(null)
+  const [foto, setFoto] = useState<string | null>(null)
   const [base, setBase] = useState({ generado: inicial.generado, fuente: inicial.fuente })
   const [sincronizado, setSincronizado] = useState<Date | null>(new Date())
   const [sinConexion, setSinConexion] = useState(false)
@@ -196,6 +200,24 @@ export function ProveedorCRM({
     [avisar, consultar, sesion],
   )
 
+  // La foto no viaja con los contactos: se pide aparte, una vez
+  useEffect(() => {
+    api.foto(sesion).then((r) => setFoto(r.foto), () => undefined)
+  }, [sesion])
+
+  const guardarFoto = useCallback<CRM['guardarFoto']>(
+    async (nueva) => {
+      try {
+        setFoto((await api.guardarFoto(sesion, nueva)).foto)
+        return true
+      } catch (err) {
+        avisar(`No se guardó la foto: ${(err as Error).message}`, 'error')
+        return false
+      }
+    },
+    [avisar, sesion],
+  )
+
   const avisoClub = useCallback<CRM['avisoClub']>(
     async (solicitudId, accion) => {
       try {
@@ -254,6 +276,8 @@ export function ProveedorCRM({
     actualizar,
     nuevo,
     guardarConfig,
+    foto,
+    guardarFoto,
     avisoClub,
     recargar,
     avisar,

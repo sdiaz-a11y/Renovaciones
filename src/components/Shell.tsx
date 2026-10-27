@@ -22,6 +22,7 @@ import { Mensajes } from '../pages/Mensajes'
 import { Panel } from '../pages/Panel'
 import { Seguimientos } from '../pages/Seguimientos'
 import { Ficha } from './Ficha'
+import { Perfil } from './Perfil'
 import { Avatar } from './ui'
 
 interface Item {
@@ -59,7 +60,8 @@ export function Shell({ salir }: { salir: () => void }) {
 }
 
 function Marco({ items, salir }: { items: Item[]; salir: () => void }) {
-  const { sesion, esAdmin, contactos, sincronizado, sinConexion } = useCRM()
+  const { sesion, esAdmin, contactos, sincronizado, sinConexion, foto } = useCRM()
+  const [verPerfil, setVerPerfil] = useState(false)
   const { pagina, ir, fichaId, abrirFicha, llave } = useNav()
   const [, refrescar] = useState(0)
   useEffect(() => {
@@ -111,7 +113,9 @@ function Marco({ items, salir }: { items: Item[]; salir: () => void }) {
         </nav>
         <div className="m-3 rounded-2xl bg-white/6 p-3.5">
           <div className="flex items-center gap-3">
-            <Avatar nombre={sesion.nombre} tam={36} oscuro />
+            <button onClick={() => setVerPerfil(true)} className="shrink-0 rounded-full transition hover:opacity-85" title="Mi perfil y foto" aria-label="Mi perfil y foto">
+              <Avatar nombre={sesion.nombre} tam={36} oscuro foto={foto} />
+            </button>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">{sesion.nombre}</p>
               <p className="flex items-center gap-1 text-[11px] text-white/55">
@@ -142,6 +146,9 @@ function Marco({ items, salir }: { items: Item[]; salir: () => void }) {
             {sesion.nombre} · {sinConexion ? 'sin conexión' : esAdmin ? 'Administrador' : 'Equipo'}
           </p>
         </div>
+        <button onClick={() => setVerPerfil(true)} className="shrink-0" aria-label="Mi perfil y foto">
+          <Avatar nombre={sesion.nombre} tam={32} oscuro foto={foto} />
+        </button>
         <button onClick={salir} className="rounded-lg p-2 text-white/70" aria-label="Salir">
           <LogOut size={18} />
         </button>
@@ -188,6 +195,7 @@ function Marco({ items, salir }: { items: Item[]; salir: () => void }) {
       </nav>
 
       <Ficha id={fichaId} cerrar={() => abrirFicha(null)} />
+      <Perfil abierto={verPerfil} cerrar={() => setVerPerfil(false)} />
     </div>
   )
 }
