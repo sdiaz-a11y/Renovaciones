@@ -35,26 +35,43 @@ export type Motivo =
   | 'tiempo'
   | 'dinero'
   | 'no_aprovecho'
+  | 'no_uso'
   | 'no_le_gusto'
   | 'soporte'
-  | 'reembolso'
-  | 'salud'
-  | 'pausa'
   | 'otros_proyectos'
+  | 'pausa'
+  | 'salud'
   | 'sin_motivo'
+  // ya no se ofrece al registrar un "no me interesa", pero puede haber contactos con este motivo guardado
+  | 'reembolso'
 
 export const MOTIVOS: Record<Motivo, string> = {
   tiempo: 'Falta de tiempo',
-  dinero: 'Dinero',
-  no_aprovecho: 'No lo aprovechó / no le sirvió',
-  no_le_gusto: 'No le gustó / mala experiencia',
+  dinero: 'Dinero / precio',
+  no_aprovecho: 'No vio resultados',
+  no_uso: 'No lo usó / se le olvidó',
+  no_le_gusto: 'Mala experiencia',
   soporte: 'Problemas con soporte o plataforma',
-  reembolso: 'Reembolso o reclamo',
+  otros_proyectos: 'Cambió de prioridades o proyectos',
+  pausa: 'Quiere pausar y volver después',
   salud: 'Salud o motivos personales',
-  pausa: 'Quiere pausar / más adelante',
-  otros_proyectos: 'Está en otros proyectos',
   sin_motivo: 'Sin motivo claro',
+  reembolso: 'Reembolso o reclamo',
 }
+
+/** Los motivos que se ofrecen al registrar un "no le interesa", del más al menos común */
+export const MOTIVOS_ELEGIBLES: Motivo[] = [
+  'tiempo',
+  'dinero',
+  'no_aprovecho',
+  'no_uso',
+  'no_le_gusto',
+  'soporte',
+  'otros_proyectos',
+  'pausa',
+  'salud',
+  'sin_motivo',
+]
 export const esMotivo = (v: unknown): v is Motivo => typeof v === 'string' && v in MOTIVOS
 
 export interface Nota {

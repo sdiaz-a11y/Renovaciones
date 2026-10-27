@@ -3,7 +3,7 @@ import { CalendarClock, CircleCheckBig, Clock, Copy, FileSpreadsheet, Mail, MapP
 import { useEffect, useState } from 'react'
 import { useCRM } from '../lib/crm'
 import { copiar, cuandoSeguimiento, fechaCorta, haceCuanto, hoy, textoVencimiento } from '../lib/util'
-import { ESTADO, ESTADOS, MOTIVOS, type Contacto, type Motivo } from '../shared/modelo'
+import { ESTADO, ESTADOS, MOTIVOS, MOTIVOS_ELEGIBLES, type Contacto } from '../shared/modelo'
 import { Resultado } from './Resultado'
 import { Avatar, BotonLlamar, BotonWhatsapp, EstadoChip } from './ui'
 
@@ -174,7 +174,7 @@ function Contenido({ c, cerrar }: { c: Contacto; cerrar: () => void }) {
             </div>
             {c.estado === 'no_interesado' && (
               <div className="mt-3 flex flex-wrap gap-1.5">
-                {(Object.keys(MOTIVOS) as Motivo[]).map((m) => (
+                {MOTIVOS_ELEGIBLES.map((m) => (
                   <button
                     key={m}
                     onClick={() => actualizar([c.id], { motivo: m })}

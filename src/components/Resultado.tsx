@@ -3,7 +3,7 @@ import { Ban, CircleCheckBig, Flame, MessageCircle, PhoneOff, ThumbsDown } from 
 import { useState, type ReactNode } from 'react'
 import { useCRM } from '../lib/crm'
 import { hoy } from '../lib/util'
-import { ESTADO, MOTIVOS, type Contacto, type Edicion, type Estado, type Motivo } from '../shared/modelo'
+import { ESTADO, MOTIVOS, MOTIVOS_ELEGIBLES, type Contacto, type Edicion, type Estado, type Motivo } from '../shared/modelo'
 
 interface Opcion {
   id: string
@@ -83,7 +83,7 @@ export function Resultado({ c, alTerminar, grande }: { c: Contacto; alTerminar?:
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
             <p className="kicker mt-4 mb-2">¿Por qué no quiere renovar?</p>
             <div className="flex flex-wrap gap-1.5">
-              {(Object.keys(MOTIVOS) as Motivo[]).map((m) => (
+              {MOTIVOS_ELEGIBLES.map((m) => (
                 <button
                   key={m}
                   disabled={guardando}
