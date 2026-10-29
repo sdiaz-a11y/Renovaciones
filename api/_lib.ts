@@ -116,7 +116,7 @@ export const puedeVer = (q: Quien, c: Contacto) => q.rol === 'admin' || enAlcanc
 
 // ---------- Contactos ----------
 
-const COLUMNAS = '*, notas(id, texto, fecha, hoja, por, estado), solicitudes_renovacion(id, estado, ultimo_error, creada)'
+const COLUMNAS = '*, notas(id, texto, fecha, hoja, por, estado), solicitudes_renovacion(id, estado, ultimo_error, creada), comprobantes(id, nombre, tipo, por, creado)'
 // La API de Supabase entrega como máximo 1000 filas por consulta
 const PAGINA = 1000
 
@@ -178,6 +178,8 @@ function aContacto(f: Record<string, any>): Contacto {
     c.solicitud = { id: aviso.id, estado: aviso.estado as EstadoSolicitud, creada: new Date(aviso.creada).toISOString() }
     if (aviso.estado === 'fallida' && aviso.ultimo_error) c.solicitud.error = aviso.ultimo_error
   }
+  const comprobantes = ([...(f.comprobantes ?? [])] as { id: string; nombre: string; tipo: string; por: string; creado: string }[]).sort((a, b) => a.creado.localeCompare(b.creado))
+  if (comprobantes.length) c.comprobantes = comprobantes.map((x) => ({ ...x, creado: new Date(x.creado).toISOString() }))
   if (f.v > 0) {
     c.v = Number(f.v)
     c.at = new Date(f.at).toISOString()

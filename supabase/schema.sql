@@ -143,6 +143,24 @@ create table if not exists fotos (
 );
 alter table fotos enable row level security;
 
+-- Comprobantes de pago de las renovaciones (foto o PDF). El archivo vive en un bucket PRIVADO de Storage y aquí
+-- queda su registro; la app lo abre con un enlace temporal que solo pide quien puede ver ese contacto.
+create table if not exists comprobantes (
+  id          uuid primary key default gen_random_uuid(),
+  contacto_id text not null references contactos (id) on delete cascade,
+  ruta        text not null,
+  nombre      text not null,
+  tipo        text not null,
+  por         text not null default '',
+  creado      timestamptz not null default now()
+);
+create index if not exists comprobantes_contacto_idx on comprobantes (contacto_id);
+alter table comprobantes enable row level security;
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('comprobantes', 'comprobantes', false, 5242880, array['image/jpeg', 'application/pdf'])
+on conflict (id) do nothing;
+
 -- Los cambios que modifican contactos se guardan con un candado: así la versión (v) sube en el mismo
 -- orden en que se confirman y ningún navegador se salta un cambio al pedir "lo nuevo desde la versión N".
 

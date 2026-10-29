@@ -1,3 +1,4 @@
+import type { ArchivoListo } from './comprobante'
 import type { Actividad, Contacto, Edicion, Plantilla, Rol, UsuarioPublico } from '../shared/modelo'
 
 // ---------- Sesión (código del equipo + nombre) ----------
@@ -138,6 +139,10 @@ export const api = {
   nuevo: (s: Sesion, datos: NuevoContacto) => pedir<{ v: number; contacto: Contacto }>('/api/nuevo', s, datos),
   config: (s: Sesion, datos: { plantillas?: Plantilla[]; meta?: number | null }) =>
     pedir<{ v: number; plantillas?: Plantilla[]; meta: number | null }>('/api/config', s, datos),
+  /** Sube un comprobante de pago (foto reducida o PDF) al contacto */
+  subirComprobante: (s: Sesion, contactoId: string, a: ArchivoListo) => pedir<{ contactos: Contacto[] }>('/api/comprobante', s, { contactoId, ...a }),
+  /** Enlace temporal (5 min) para abrir un comprobante */
+  verComprobante: (s: Sesion, id: string) => pedir<{ url: string; nombre: string }>(`/api/comprobante?id=${encodeURIComponent(id)}`, s),
   foto: (s: Sesion) => pedir<{ foto: string | null }>('/api/foto', s),
   guardarFoto: (s: Sesion, foto: string | null) => pedir<{ foto: string | null }>('/api/foto', s, { foto }),
   usuarios: (s: Sesion) => pedir<{ usuarios: UsuarioPublico[] }>('/api/usuarios', s),

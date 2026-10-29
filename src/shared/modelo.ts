@@ -103,6 +103,15 @@ export interface SolicitudClub {
   creada: string
 }
 
+/** Comprobante de pago subido a un contacto (el archivo se abre aparte, con un enlace temporal) */
+export interface ComprobanteInfo {
+  id: string
+  nombre: string
+  tipo: string
+  por: string
+  creado: string
+}
+
 export interface Contacto {
   id: string
   nombre: string
@@ -132,6 +141,7 @@ export interface Contacto {
   por?: string
   /** Último aviso de renovación enviado al CRM del Club */
   solicitud?: SolicitudClub
+  comprobantes?: ComprobanteInfo[]
 }
 
 export interface Base {

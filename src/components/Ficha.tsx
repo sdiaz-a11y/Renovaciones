@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { CalendarClock, CircleCheckBig, Clock, Copy, FileSpreadsheet, Mail, MapPin, Send, ShieldAlert, StickyNote, TriangleAlert, UserRound, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { CalendarClock, CircleCheckBig, Clock, Copy, FileSpreadsheet, FileText, Mail, MapPin, Paperclip, Send, ShieldAlert, StickyNote, TriangleAlert, UserRound, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { esComprobanteValido } from '../lib/comprobante'
 import { useCRM } from '../lib/crm'
 import { copiar, cuandoSeguimiento, fechaCorta, haceCuanto, hoy, textoVencimiento } from '../lib/util'
 import { ESTADO, ESTADOS, MOTIVOS, MOTIVOS_ELEGIBLES, type Contacto } from '../shared/modelo'
@@ -107,6 +108,7 @@ function Contenido({ c, cerrar }: { c: Contacto; cerrar: () => void }) {
         )}
 
         <AvisoClub c={c} />
+        <Comprobantes c={c} />
 
         {/* Contacto */}
         <section className="tarjeta p-4">
@@ -364,6 +366,55 @@ function AvisoClub({ c }: { c: Contacto }) {
         <p className="mt-0.5 text-xs text-tenue">Aviso creado {cuando}</p>
       </div>
       {acciones}
+    </section>
+  )
+}
+
+/** Comprobantes de pago de la renovación: se ven y se pueden subir más desde aquí */
+function Comprobantes({ c }: { c: Contacto }) {
+  const { subirComprobante, verComprobante, avisar } = useCRM()
+  const [subiendo, setSubiendo] = useState(false)
+  const entrada = useRef<HTMLInputElement>(null)
+  const lista = c.comprobantes ?? []
+  // Solo tiene sentido en renovaciones (o si ya hay alguno guardado)
+  if (c.estado !== 'renovado' && !lista.length) return null
+
+  const elegir = async (f?: File) => {
+    if (entrada.current) entrada.current.value = ''
+    if (!f) return
+    if (!esComprobanteValido(f)) return avisar('Sube una foto o un PDF', 'error')
+    setSubiendo(true)
+    await subirComprobante(c.id, f)
+    setSubiendo(false)
+  }
+
+  return (
+    <section className="tarjeta p-4">
+      <h3 className="kicker mb-3">Comprobante de pago</h3>
+      {lista.length === 0 ? (
+        <p className="mb-3 text-sm text-tenue">Todavía no hay comprobante de esta renovación.</p>
+      ) : (
+        <ul className="mb-3 flex flex-col gap-2">
+          {lista.map((x) => (
+            <li key={x.id} className="flex items-center gap-2.5 rounded-xl bg-papel p-2.5 text-sm">
+              <FileText size={18} className="shrink-0 text-tenue" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium">{x.nombre}</p>
+                <p className="text-xs text-tenue">
+                  {x.por} · {haceCuanto(x.creado)}
+                </p>
+              </div>
+              <button className="btn-suave shrink-0" onClick={() => void verComprobante(x.id)}>
+                Ver
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <input ref={entrada} type="file" accept="image/*,application/pdf" hidden onChange={(e) => void elegir(e.target.files?.[0])} />
+      <button className="btn-suave" disabled={subiendo} onClick={() => entrada.current?.click()}>
+        <Paperclip size={16} /> {subiendo ? 'Subiendo…' : lista.length ? 'Subir otro' : 'Subir comprobante'}
+      </button>
     </section>
   )
 }

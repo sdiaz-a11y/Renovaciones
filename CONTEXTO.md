@@ -39,6 +39,12 @@ Auth hacia el Club: `Authorization: Bearer <CRM_API_KEY>`. `api/_conector.ts` es
 - La ficha muestra la tarjeta **Aviso al Club** con el estado y botones Enviar ahora / Reintentar / Ya les avisé (`/api/solicitudes`: `GET` lista, solo admin; `POST {id, accion: 'reenviar'|'cerrar'}`).
 - La aprobación se detecta **solo al cerrar un ciclo completo** (que ahora solo arranca a mano): al cerrarlo, una solicitud `enviada` (o `revertida`) cuyo cliente ya no apareció entre los inactivos pasa a `aprobada` y queda una nota.
 
+## Comprobantes de pago y tiempo real
+
+- **Comprobante al renovar**: la ventana "Confirma la renovación" (`ConfirmarRenovacion.tsx`) ahora también pide una **nota** y, si es una sola persona, un **comprobante de pago** opcional (foto o PDF). La nota viaja al Club con el aviso; el comprobante **no** viaja al Club, se queda aquí. También se puede subir (o agregar otro) después desde la sección "Comprobante de pago" de la ficha.
+- **Almacenamiento**: bucket PRIVADO `comprobantes` de Supabase Storage (se crea en `schema.sql`) + tabla `comprobantes` (registro por archivo). `api/comprobante.ts`: `POST` sube (JSON con el archivo en base64: las fotos se reducen en el navegador a JPEG de máx. 1600 px; los PDF hasta 3 MB; el servidor valida tipo y contenido) y `GET ?id=` entrega un enlace temporal de 5 min a quien puede ver ese contacto. Cada subida deja una entrada en la línea de tiempo y sube la versión (para que los demás la vean).
+- **Casi en vivo**: el navegador consulta `/api/cambios` cada **4 s** (antes 30 s) con la pestaña visible; si no hay cambios el servidor responde con una sola lectura. Lo que no sube la versión (p. ej. contactos nuevos de la sincronización con el Club) no se ve en vivo: hay que recargar. Si hiciera falta menos de 4 s o menos consultas, la mejora es Supabase Realtime (broadcast de la versión).
+
 ## Menú Info
 
 - `src/pages/Info.tsx` (menú lateral **Info**, para administradores y equipo): planes de renovación a 1 año con precio, qué incluye y enlace de pago (copiar / abrir) para LATAM ($299), MX ($5,997) y USA ($999). Los datos están en la constante `PLANES` del archivo: si cambian precios, contenido o enlaces, se editan ahí.

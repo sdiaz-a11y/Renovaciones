@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { acumular, aplicar, type Actividad, type Contacto, type Edicion, type Plantilla } from '../shared/modelo'
-import { ConfirmarRenovacion } from '../components/ConfirmarRenovacion'
+import { ConfirmarRenovacion, type Confirmacion } from '../components/ConfirmarRenovacion'
+import { prepararComprobante } from './comprobante'
 import { api, type Carga, type Delta, type NuevoContacto, type Sesion } from './api'
 
 interface CRM {
@@ -25,6 +26,10 @@ interface CRM {
   guardarFoto: (foto: string | null) => Promise<boolean>
   /** Reenvía el aviso de renovación al Club, o confirma que ya se le avisó a mano que no procede */
   avisoClub: (solicitudId: string, accion: 'reenviar' | 'cerrar') => Promise<boolean>
+  /** Sube un comprobante de pago (foto o PDF) a la ficha de un contacto */
+  subirComprobante: (contactoId: string, archivo: File) => Promise<boolean>
+  /** Abre un comprobante en otra pestaña */
+  verComprobante: (id: string) => Promise<void>
   /** Vuelve a bajar todos los contactos (la sincronización con el Club no sube la versión, así que el sondeo no los ve) */
   recargar: () => Promise<void>
   avisar: (texto: string, tipo?: 'ok' | 'error') => void
@@ -38,7 +43,8 @@ export function useCRM() {
   return c
 }
 
-const CADA = 30_000
+// Casi en vivo: cuando no hay cambios el servidor responde con una sola lectura barata. Con la pestaña oculta no se consulta.
+const CADA = 4_000
 
 function fusionar(lista: Contacto[], nuevos: Contacto[]) {
   if (!nuevos.length) return lista
@@ -72,7 +78,7 @@ export function ProveedorCRM({
   const [plantillas, setPlantillas] = useState(inicial.plantillas)
   const [meta, setMeta] = useState(inicial.meta)
   // Doble verificación de "Renovado": mientras haya una pendiente se muestra la ventana de confirmación
-  const [confirmando, setConfirmando] = useState<{ contactos: Contacto[]; responder: (ok: boolean) => void } | null>(null)
+  const [confirmando, setConfirmando] = useState<{ contactos: Contacto[]; notaInicial: string; responder: (r: Confirmacion | null) => void } | null>(null)
   const [foto, setFoto] = useState<string | null>(null)
   const [base, setBase] = useState({ generado: inicial.generado, fuente: inicial.fuente })
   const [sincronizado, setSincronizado] = useState<Date | null>(new Date())
@@ -127,22 +133,59 @@ export function ProveedorCRM({
   const porIdRef = useRef(porId)
   porIdRef.current = porId
 
+  const subirComprobante = useCallback<CRM['subirComprobante']>(
+    async (contactoId, archivo) => {
+      try {
+        const r = await api.subirComprobante(sesion, contactoId, await prepararComprobante(archivo))
+        setContactos((prev) => fusionar(prev, r.contactos))
+        avisar('Comprobante guardado')
+        return true
+      } catch (err) {
+        avisar(`No se subió el comprobante: ${(err as Error).message}`, 'error')
+        return false
+      }
+    },
+    [avisar, sesion],
+  )
+
+  const verComprobante = useCallback<CRM['verComprobante']>(
+    async (id) => {
+      // La pestaña se abre antes de pedir el enlace, para que el navegador no la bloquee
+      const ventana = window.open('', '_blank')
+      try {
+        const { url } = await api.verComprobante(sesion, id)
+        if (ventana) ventana.location.href = url
+        else window.open(url, '_blank')
+      } catch (err) {
+        ventana?.close()
+        avisar(`No se pudo abrir el comprobante: ${(err as Error).message}`, 'error')
+      }
+    },
+    [avisar, sesion],
+  )
+
   const actualizar = useCallback<CRM['actualizar']>(
-    async (ids, edicion) => {
+    async (ids, edicionPedida) => {
+      let edicion = edicionPedida
+      let archivo: File | null = null
       const antes = ids.map((id) => porIdRef.current.get(id)).filter((c): c is Contacto => !!c)
       // Marcar "Renovado" avisa al CRM del Club: antes se pide confirmar (el servidor también lo exige)
       const porRenovar = edicion.estado === 'renovado' ? antes.filter((c) => c.estado !== 'renovado') : []
       if (porRenovar.length) {
-        const confirmado = await new Promise<boolean>((resolver) =>
+        const r = await new Promise<Confirmacion | null>((resolver) =>
           setConfirmando({
             contactos: porRenovar,
-            responder: (ok) => {
+            notaInicial: edicion.nota ?? '',
+            responder: (x) => {
               setConfirmando(null)
-              resolver(ok)
+              resolver(x)
             },
           }),
         )
-        if (!confirmado) return false
+        if (!r) return false
+        // La nota y el comprobante se capturan en la misma ventana de confirmación
+        if (r.nota.trim()) edicion = { ...edicion, nota: r.nota.trim() }
+        archivo = r.archivo
       }
       const ahora = new Date().toISOString()
       // Se ve el cambio al instante; si el servidor falla, se regresa
@@ -159,6 +202,8 @@ export function ProveedorCRM({
           avisar(`Ya se había avisado al Club que ${r.club.revertidas.join(', ')} renovó. Avísales que no procede (ficha → Aviso al Club).`, 'error')
         }
         void consultar()
+        // El comprobante se sube ya con la renovación guardada; si falla, se puede volver a subir desde la ficha
+        if (archivo && ids.length === 1) await subirComprobante(ids[0], archivo)
         return true
       } catch (err) {
         setContactos((prev) => fusionar(prev, antes))
@@ -166,7 +211,7 @@ export function ProveedorCRM({
         return false
       }
     },
-    [avisar, consultar, sesion],
+    [avisar, consultar, sesion, subirComprobante],
   )
 
   const nuevo = useCallback<CRM['nuevo']>(
@@ -278,6 +323,8 @@ export function ProveedorCRM({
     guardarConfig,
     foto,
     guardarFoto,
+    subirComprobante,
+    verComprobante,
     avisoClub,
     recargar,
     avisar,
@@ -285,7 +332,7 @@ export function ProveedorCRM({
   return (
     <Ctx.Provider value={valor}>
       {children}
-      {confirmando && <ConfirmarRenovacion contactos={confirmando.contactos} responder={confirmando.responder} />}
+      {confirmando && <ConfirmarRenovacion contactos={confirmando.contactos} notaInicial={confirmando.notaInicial} responder={confirmando.responder} />}
     </Ctx.Provider>
   )
 }
