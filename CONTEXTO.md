@@ -39,6 +39,10 @@ Auth hacia el Club: `Authorization: Bearer <CRM_API_KEY>`. `api/_conector.ts` es
 - La ficha muestra la tarjeta **Aviso al Club** con el estado y botones Enviar ahora / Reintentar / Ya les avisé (`/api/solicitudes`: `GET` lista, solo admin; `POST {id, accion: 'reenviar'|'cerrar'}`).
 - La aprobación se detecta **solo al cerrar un ciclo completo** (que ahora solo arranca a mano): al cerrarlo, una solicitud `enviada` (o `revertida`) cuyo cliente ya no apareció entre los inactivos pasa a `aprobada` y queda una nota.
 
+## Menú Info
+
+- `src/pages/Info.tsx` (menú lateral **Info**, para administradores y equipo): planes de renovación a 1 año con precio, qué incluye y enlace de pago (copiar / abrir) para LATAM ($299), MX ($5,997) y USA ($999). Los datos están en la constante `PLANES` del archivo: si cambian precios, contenido o enlaces, se editan ahí.
+
 ## Decisiones tomadas
 
 - Se abandona Google Sheets; esta base es la única fuente en este CRM. Solo aparecen clientes del CRM del Club sin acceso; los REVOCADOS no.

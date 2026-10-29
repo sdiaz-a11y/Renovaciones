@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   CalendarClock,
   House,
+  Info as IconoInfo,
   LayoutDashboard,
   LogOut,
   MessageSquareText,
@@ -16,6 +17,7 @@ import { ProveedorNav, useNav, type Pagina } from '../lib/nav'
 import { haceCuanto, hoy } from '../lib/util'
 import { Contactos } from '../pages/Contactos'
 import { Equipo } from '../pages/Equipo'
+import { Info } from '../pages/Info'
 import { Inicio } from '../pages/Inicio'
 import { Llamar } from '../pages/Llamar'
 import { Mensajes } from '../pages/Mensajes'
@@ -39,6 +41,7 @@ const ADMIN: Item[] = [
   { id: 'llamar', label: 'Llamar', corto: 'Llamar', icono: <PhoneCall size={19} /> },
   { id: 'equipo', label: 'Equipo', corto: 'Equipo', icono: <UsersRound size={19} /> },
   { id: 'mensajes', label: 'Mensajes y meta', corto: 'Mensajes', icono: <MessageSquareText size={19} /> },
+  { id: 'info', label: 'Info', corto: 'Info', icono: <IconoInfo size={19} /> },
 ]
 
 const USUARIO: Item[] = [
@@ -46,6 +49,7 @@ const USUARIO: Item[] = [
   { id: 'llamar', label: 'Llamar', corto: 'Llamar', icono: <PhoneCall size={19} /> },
   { id: 'seguimientos', label: 'Seguimientos', corto: 'Agenda', icono: <CalendarClock size={19} /> },
   { id: 'contactos', label: 'Mis contactos', corto: 'Contactos', icono: <Contact size={19} /> },
+  { id: 'info', label: 'Info', corto: 'Info', icono: <IconoInfo size={19} /> },
 ]
 
 export function Shell({ salir }: { salir: () => void }) {
@@ -170,6 +174,7 @@ function Marco({ items, salir }: { items: Item[]; salir: () => void }) {
             {pagina === 'llamar' && <Llamar />}
             {pagina === 'equipo' && <Equipo />}
             {pagina === 'mensajes' && <Mensajes />}
+            {pagina === 'info' && <Info />}
           </motion.div>
         </AnimatePresence>
       </main>

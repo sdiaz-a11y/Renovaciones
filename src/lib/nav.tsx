@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Estado } from '../shared/modelo'
 
-export type Pagina = 'panel' | 'inicio' | 'contactos' | 'seguimientos' | 'llamar' | 'equipo' | 'mensajes'
+export type Pagina = 'panel' | 'inicio' | 'contactos' | 'seguimientos' | 'llamar' | 'equipo' | 'mensajes' | 'info'
 
 export interface Filtros {
   estados?: Estado[]
@@ -30,7 +30,7 @@ export function useNav() {
   return n
 }
 
-const PAGINAS: Pagina[] = ['panel', 'inicio', 'contactos', 'seguimientos', 'llamar', 'equipo', 'mensajes']
+const PAGINAS: Pagina[] = ['panel', 'inicio', 'contactos', 'seguimientos', 'llamar', 'equipo', 'mensajes', 'info']
 
 function desdeHash(defecto: Pagina, permitidas: Pagina[]): Pagina {
   const p = window.location.hash.replace(/^#\/?/, '').split('?')[0] as Pagina
