@@ -32,7 +32,7 @@ const PLANES: Plan[] = [
     region: 'USA',
     nombre: 'RENOVACION USA 1 año',
     precio: '$999.00',
-    incluye: ['1 año CS', '1 año Skool', '2 VIP SU mx'],
+    incluye: ['1 año CS', '1 año Skool', '2 VIP SU mx', '2 Generales a Synergy Unlimited USA 2027'],
     enlace: 'https://www.synergyforeducation.com/offers/hAH7JZbL',
   },
 ]
