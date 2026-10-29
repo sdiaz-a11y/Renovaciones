@@ -8,6 +8,7 @@ interface Plan {
   region: string
   nombre: string
   precio: string
+  moneda: 'USD' | 'MXN'
   incluye: string[]
   enlace: string
 }
@@ -18,6 +19,7 @@ const PLANES: Plan[] = [
     region: 'LATAM',
     nombre: 'RENOVACION LATAM 1 año',
     precio: '$299.00',
+    moneda: 'USD',
     incluye: ['1 año CS', '1 año Skool', '2 VIP SU mx'],
     enlace: 'https://pay.hotmart.com/D106300176V?off=ill2992e',
   },
@@ -25,6 +27,7 @@ const PLANES: Plan[] = [
     region: 'MX',
     nombre: 'RENOVACION MX 1 año',
     precio: '$5,997.00',
+    moneda: 'MXN',
     incluye: ['1 año CS', '1 año Skool', '2 Gral SU mx'],
     enlace: 'https://checkout.synergyforeducation.com/pay/pl_d5a368bddbdd56eac7c049c65fe3d6c9',
   },
@@ -32,6 +35,7 @@ const PLANES: Plan[] = [
     region: 'USA',
     nombre: 'RENOVACION USA 1 año',
     precio: '$999.00',
+    moneda: 'USD',
     incluye: ['1 año CS', '1 año Skool', '2 VIP SU mx', '2 Generales a Synergy Unlimited USA 2027'],
     enlace: 'https://www.synergyforeducation.com/offers/hAH7JZbL',
   },
@@ -77,7 +81,10 @@ function TarjetaPlan({ plan, retraso }: { plan: Plan; retraso: number }) {
       className="tarjeta flex flex-col p-5"
     >
       <p className="kicker">{plan.region}</p>
-      <p className="mt-1 font-display text-5xl leading-none font-extrabold tracking-tight">{plan.precio}</p>
+      <p className="mt-1 flex items-baseline gap-2 font-display text-5xl leading-none font-extrabold tracking-tight">
+        {plan.precio}
+        <span className="font-sans text-sm font-bold tracking-wide text-tenue">{plan.moneda}</span>
+      </p>
       <p className="mt-1.5 text-xs font-semibold text-tenue">{plan.nombre}</p>
 
       <p className="kicker mt-5 mb-2">Incluye</p>
